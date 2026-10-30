@@ -1,0 +1,11 @@
+{
+  "name": "cytoscape-cheating-graph-viewer",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A local-first Cytoscape.js viewer for graphs with confidence-weighted edges and side-by-side exercise files",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test test/*.test.mjs"
+  }
+}

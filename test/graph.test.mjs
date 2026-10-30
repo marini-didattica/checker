@@ -1,0 +1,195 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { parseGraph } from '../js/graph.js';
+
+test('parses nodes, edges, confidence, and exercises', () => {
+  const parsed = parseGraph(
+    {
+      name: '  My graph  ',
+      elements: {
+        nodes: [
+          { data: { id: 'a' }, style: { label: 'A', width: 48, height: 40 } },
+          { data: { id: 'b' } }
+        ],
+        edges: [
+          {
+            data: {
+              id: 'a-b',
+              source: 'a',
+              target: 'b',
+              confidence: 0.6,
+              exercises: { 'exercise-name': ['file1', 'file2'] }
+            },
+            style: { 'line-color': '#7ee2b8' }
+          }
+        ]
+      }
+    },
+    'fallback'
+  );
+
+  assert.equal(parsed.name, 'My graph');
+  assert.equal(parsed.elements.length, 3);
+  assert.equal(parsed.stats.nodes, 2);
+  assert.equal(parsed.stats.edges, 1);
+  assert.equal(parsed.stats.withConfidence, 1);
+  assert.equal(parsed.stats.withExercises, 1);
+
+  const node = parsed.elements[0];
+  assert.equal(node.data.label, 'a');
+  assert.equal(node.scratch.baseWidth, 48);
+  assert.equal(node.scratch.baseHeight, 40);
+  assert.equal(node.scratch.styleOverride.label, 'A');
+  assert.equal(node.scratch.styleOverride.width, undefined);
+
+  const edge = parsed.elements[2];
+  assert.equal(edge.scratch.confidence, 0.6);
+  assert.equal(edge.scratch.baseWidth, 2);
+  assert.deepEqual(edge.data.exercises, { 'exercise-name': ['file1', 'file2'] });
+  assert.equal(edge.scratch.styleOverride['target-arrow-color'], '#7ee2b8');
+});
+
+test('accepts a flat elements array and infers node/edge kinds', () => {
+  const parsed = parseGraph({
+    elements: [
+      { data: { id: 'a' } },
+      { data: { id: 'b' } },
+      { data: { source: 'a', target: 'b' } }
+    ]
+  });
+
+  assert.equal(parsed.elements.length, 3);
+  assert.equal(parsed.stats.nodes, 2);
+  assert.equal(parsed.stats.edges, 1);
+  assert.equal(parsed.elements[2].data.id, 'edge-a-b');
+});
+
+test('clamps confidence and reports warnings', () => {
+  const parsed = parseGraph({
+    elements: {
+      nodes: [{ data: { id: 'a' } }, { data: { id: 'b' } }],
+      edges: [
+        { data: { source: 'a', target: 'b', confidence: 1.7 } },
+        { data: { source: 'a', target: 'b', confidence: 'nope' } }
+      ]
+    }
+  });
+
+  assert.equal(parsed.elements[2].scratch.confidence, 1);
+  assert.equal(parsed.elements[3].scratch.confidence, null);
+  assert.equal(parsed.warnings.length, 2);
+});
+
+test('drops invalid exercise entries and keeps valid ones', () => {
+  const parsed = parseGraph({
+    elements: {
+      nodes: [{ data: { id: 'a' } }, { data: { id: 'b' } }],
+      edges: [
+        {
+          data: {
+            source: 'a',
+            target: 'b',
+            exercises: {
+              good: ['one.js', 'two.js'],
+              bad: ['one.js', 42],
+              worse: 'not-an-array'
+            }
+          }
+        }
+      ]
+    }
+  });
+
+  assert.deepEqual(parsed.elements[2].data.exercises, {
+    good: ['one.js', 'two.js'],
+    bad: ['one.js']
+  });
+  assert.equal(parsed.stats.withExercises, 1);
+  assert.match(parsed.warnings.join('\n'), /non-string paths/);
+  assert.match(parsed.warnings.join('\n'), /must contain an array/);
+});
+
+test('does not accept legacy root-level nodes and edges', () => {
+  assert.throws(
+    () =>
+      parseGraph({
+        nodes: [{ data: { id: 'a' } }],
+        edges: []
+      }),
+    /expected an “elements” object/
+  );
+});
+
+test('rejects missing and duplicate node ids', () => {
+  assert.throws(
+    () => parseGraph({ elements: { nodes: [{ data: {} }], edges: [] } }),
+    /missing a “data.id”/
+  );
+
+  assert.throws(
+    () =>
+      parseGraph({
+        elements: {
+          nodes: [{ data: { id: 'a' } }, { data: { id: 'a' } }],
+          edges: []
+        }
+      }),
+    /Duplicate node id/
+  );
+});
+
+test('rejects edges that reference missing nodes', () => {
+  assert.throws(
+    () =>
+      parseGraph({
+        elements: {
+          nodes: [{ data: { id: 'a' } }],
+          edges: [{ data: { source: 'a', target: 'missing' } }]
+        }
+      }),
+    /missing node “missing”/
+  );
+});
+
+test('rejects a graph without nodes', () => {
+  assert.throws(
+    () => parseGraph({ elements: { nodes: [], edges: [] } }),
+    /no nodes/
+  );
+});
+
+test('generates unique edge ids', () => {
+  const parsed = parseGraph({
+    elements: {
+      nodes: [{ data: { id: 'a' } }, { data: { id: 'b' } }],
+      edges: [
+        { data: { source: 'a', target: 'b' } },
+        { data: { source: 'a', target: 'b' } }
+      ]
+    }
+  });
+
+  assert.equal(parsed.elements[2].data.id, 'edge-a-b');
+  assert.equal(parsed.elements[3].data.id, 'edge-a-b-1');
+});
+
+test('ignores malformed per-element styles with a warning', () => {
+  const parsed = parseGraph({
+    elements: {
+      nodes: [{ data: { id: 'a' }, style: 'nope' }],
+      edges: []
+    }
+  });
+
+  assert.equal(parsed.elements[0].scratch.styleOverride, null);
+  assert.match(parsed.warnings[0], /invalid “style”/);
+});
+
+test('uses the fallback name when the graph has no name', () => {
+  const parsed = parseGraph(
+    { elements: { nodes: [{ data: { id: 'a' } }], edges: [] } },
+    'graph'
+  );
+  assert.equal(parsed.name, 'graph');
+  assert.equal(parsed.elements[0].data.label, 'a');
+});

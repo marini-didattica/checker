@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <title>Cheating Graph Viewer</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main id="cy" aria-label="Interactive graph"></main>
+
+    <div id="drop-overlay" class="drop-overlay">
+      <div
+        id="drop-card"
+        class="drop-card"
+        role="button"
+        tabindex="0"
+        aria-describedby="drop-help"
+      >
+        <div class="drop-icon" aria-hidden="true">
+          <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="15" cy="18" r="6" />
+            <circle cx="49" cy="15" r="5" />
+            <circle cx="32" cy="47" r="7" />
+            <path d="M20.5 21.5 27 41" />
+            <path d="M44.5 18.5 37 41" />
+            <path d="M21 18h23" />
+            <path d="M13 51h12" />
+            <path d="M19 45v12" opacity=".55" />
+          </svg>
+        </div>
+
+        <p class="eyebrow">Cytoscape.js · confidence viewer</p>
+        <h1>Drop a graph JSON file</h1>
+        <p id="drop-help" class="muted">
+          Drop the file anywhere on this panel, or open the folder that contains it.
+          Edges are drawn with a thickness that follows <code>confidence</code>, and
+          clicking one opens its exercise files side by side.
+        </p>
+
+        <pre class="format-sample"><code>{
+  "name": "My graph",
+  "elements": {
+    "nodes": [
+      { "data": { "id": "a" }, "style": { "label": "Node A" } }
+    ],
+    "edges": [
+      {
+        "data": {
+          "source": "a",
+          "confidence": 0.6,
+          "exercises": {
+            "exercise-name": ["file1", "file2"]
+          }
+        }
+      }
+    ]
+  }
+}</code></pre>
+
+        <div class="drop-actions">
+          <button id="browse-file" class="primary-button" type="button">Browse graph file</button>
+          <button id="open-folder" class="ghost-button" type="button">Open folder…</button>
+        </div>
+
+        <p class="drop-note">
+          Access to the graph file’s directory is requested as soon as the file is
+          loaded. Paths inside <code>exercises</code> are resolved relative to that
+          directory.
+        </p>
+        <p id="drop-error" class="drop-error" role="alert" hidden></p>
+      </div>
+    </div>
+
+    <div id="drop-veil" class="drop-veil" hidden aria-hidden="true">
+      <div class="drop-veil-inner">
+        <span class="drop-veil-icon" aria-hidden="true">↓</span>
+        <span>Drop to open a graph</span>
+      </div>
+    </div>
+
+    <input id="file-input" type="file" accept=".json,application/json" hidden />
+    <input
+      id="folder-input"
+      type="file"
+      webkitdirectory
+      directory
+      multiple
+      hidden
+    />
+
+    <aside id="panel" class="panel" aria-label="Graph controls" hidden>
+      <div class="panel-head">
+        <div class="panel-title-wrap">
+          <p class="panel-kicker">Graph</p>
+          <h2 id="graph-name">Untitled</h2>
+        </div>
+        <button id="open-file" class="ghost-button" type="button">Open</button>
+      </div>
+
+      <p id="graph-stats" class="graph-stats">0 nodes · 0 edges</p>
+
+      <div id="folder-row" class="folder-row" hidden>
+        <span id="folder-dot" class="folder-dot" aria-hidden="true"></span>
+        <div class="folder-copy">
+          <p id="folder-title" class="folder-title">Folder access</p>
+          <p id="folder-detail" class="folder-detail">Exercise files are unavailable.</p>
+        </div>
+        <button id="folder-button" class="ghost-button small" type="button">Grant</button>
+      </div>
+
+      <div class="controls">
+        <div class="control">
+          <div class="control-label">
+            <label for="node-size">Node size</label>
+            <output id="node-size-value" for="node-size">1.0×</output>
+          </div>
+          <input id="node-size" type="range" min="0.5" max="2.5" step="0.1" value="1" />
+        </div>
+
+        <div class="control">
+          <div class="control-label">
+            <label for="edge-size">Edge scale</label>
+            <output id="edge-size-value" for="edge-size">1.0×</output>
+          </div>
+          <input id="edge-size" type="range" min="0.5" max="2.5" step="0.1" value="1" />
+        </div>
+
+        <div class="control">
+          <div class="control-label">
+            <label for="confidence-min">Confidence range</label>
+            <output id="confidence-range-value" for="confidence-min confidence-max">0–100%</output>
+          </div>
+          <div id="confidence-range" class="dual-range">
+            <div class="dual-range-track" aria-hidden="true"></div>
+            <div id="confidence-range-fill" class="dual-range-fill" aria-hidden="true"></div>
+            <input
+              id="confidence-min"
+              class="dual-range-input"
+              type="range"
+              min="0"
+              max="100"
+              step="1"
+              value="0"
+              aria-label="Minimum confidence"
+            />
+            <input
+              id="confidence-max"
+              class="dual-range-input"
+              type="range"
+              min="0"
+              max="100"
+              step="1"
+              value="100"
+              aria-label="Maximum confidence"
+            />
+          </div>
+          <div class="dual-range-scale" aria-hidden="true">
+            <span>0%</span>
+            <span>100%</span>
+          </div>
+        </div>
+
+        <div class="confidence-legend" aria-label="Confidence determines edge thickness">
+          <div class="confidence-legend-head">
+            <span>Confidence</span>
+            <span class="confidence-legend-range">0 → 1</span>
+          </div>
+          <div class="confidence-bars" aria-hidden="true">
+            <span style="--h: 1px"></span>
+            <span style="--h: 2px"></span>
+            <span style="--h: 3px"></span>
+            <span style="--h: 5px"></span>
+            <span style="--h: 7px"></span>
+            <span style="--h: 9px"></span>
+          </div>
+          <div class="confidence-legend-foot">
+            <span>weaker</span>
+            <span>stronger</span>
+          </div>
+        </div>
+
+        <label class="switch-row" for="show-node-labels">
+          <span>Node labels</span>
+          <input id="show-node-labels" class="switch" type="checkbox" checked />
+        </label>
+
+        <label class="switch-row" for="show-edge-labels">
+          <span>Edge labels</span>
+          <input id="show-edge-labels" class="switch" type="checkbox" />
+        </label>
+
+        <label class="switch-row" for="tooltips">
+          <span>Tooltips</span>
+          <input id="tooltips" class="switch" type="checkbox" checked />
+        </label>
+
+        <label class="switch-row" for="directed">
+          <span>Arrowheads</span>
+          <input id="directed" class="switch" type="checkbox" />
+        </label>
+
+        <label class="switch-row" for="highlight-neighbors">
+          <span>Highlight neighbors</span>
+          <input id="highlight-neighbors" class="switch" type="checkbox" />
+        </label>
+      </div>
+
+      <div class="panel-actions">
+        <button id="fit-view" class="ghost-button" type="button">Fit view</button>
+        <button id="rearrange" class="primary-button" type="button">Rearrange</button>
+      </div>
+
+      <p class="hint">
+        Click an edge to inspect its exercises · drag background to pan · scroll to zoom
+      </p>
+    </aside>
+
+    <section
+      id="inspector"
+      class="inspector"
+      role="dialog"
+      aria-modal="false"
+      aria-labelledby="inspector-title"
+      hidden
+    >
+      <div
+        id="inspector-resizer"
+        class="inspector-resizer"
+        role="separator"
+        aria-orientation="horizontal"
+        aria-label="Resize exercise panel"
+        tabindex="0"
+      ></div>
+
+      <header class="inspector-head">
+        <div class="inspector-title-wrap">
+          <p class="panel-kicker">Selected edge</p>
+          <h2 id="inspector-title">Edge</h2>
+          <p id="inspector-meta" class="inspector-meta"></p>
+        </div>
+        <div class="inspector-tools">
+          <div id="inspector-confidence" class="confidence-badge"></div>
+          <button
+            id="inspector-close"
+            class="icon-button"
+            type="button"
+            aria-label="Close exercise panel"
+          >
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+              <path d="m5 5 10 10M15 5 5 15" />
+            </svg>
+          </button>
+        </div>
+      </header>
+
+      <div id="exercise-tabs" class="exercise-tabs" role="tablist" aria-label="Exercises" hidden></div>
+      <div id="inspector-notice" class="inspector-notice" hidden></div>
+
+      <div id="inspector-body" class="inspector-body">
+        <div id="inspector-split" class="inspector-split"></div>
+        <div id="inspector-empty" class="inspector-empty" hidden></div>
+      </div>
+    </section>
+
+    <dialog id="graph-dialog" class="graph-dialog" aria-labelledby="graph-dialog-title">
+      <form method="dialog" class="dialog-card">
+        <header class="dialog-head">
+          <div>
+            <p class="panel-kicker">Folder</p>
+            <h2 id="graph-dialog-title">Choose a graph</h2>
+            <p id="graph-dialog-subtitle" class="dialog-subtitle"></p>
+          </div>
+          <button class="icon-button" type="submit" value="cancel" aria-label="Close">
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+              <path d="m5 5 10 10M15 5 5 15" />
+            </svg>
+          </button>
+        </header>
+        <div class="dialog-filter-wrap" id="dialog-filter-wrap" hidden>
+          <input id="dialog-filter" class="dialog-filter" type="search" placeholder="Filter JSON files…" />
+        </div>
+        <div id="graph-list" class="graph-list"></div>
+        <p id="graph-dialog-empty" class="dialog-empty" hidden>
+          No <code>.json</code> files were found in this folder. Try a different folder.
+        </p>
+        <footer class="dialog-foot">
+          <button class="ghost-button" type="submit" value="cancel">Cancel</button>
+        </footer>
+      </form>
+    </dialog>
+
+    <div id="graph-tooltip" class="graph-tooltip" role="tooltip" hidden></div>
+    <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+    <script src="vendor/cytoscape.min.js"></script>
+    <script type="module" src="js/app.js"></script>
+  </body>
+</html>
