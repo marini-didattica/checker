@@ -120,13 +120,9 @@ The document is standard Cytoscape.js element JSON, plus a top-level
           "source": "a",
           "target": "b",
           "confidence": 0.6,
-          "exercises": {
-            "exercise-name": ["file1", "file2"],
-            "exercise2-name": ["file21", "file22"]
-          }
+          "exercises": ["E1", "E2", "S5"]
         },
         "style": {
-          "label": "connects",
           "width": 4,
           "line-color": "#7ee2b8",
           "target-arrow-color": "#7ee2b8",
@@ -188,20 +184,27 @@ the directory containing the graph JSON file.
 
 ### `exercises`
 
-An object mapping an exercise name to an array of file paths. The viewer shows
-the files side by side. The format is pair-oriented, but any number of paths is
-accepted; two panes are the normal layout and extra files wrap to another row.
+An array of exercise ids, for example `["E1", "E2", "S5"]`. The viewer derives
+the two answer files from the correction descriptors of the edge's source and
+target students:
 
-When an edge has no explicit `label`, its label defaults to the exercise names,
-joined with spaces (for example `"e1 e2 e5"`). An explicit `data.label` (or a
+```text
+<test folder>/correzioni/<student-id>.json
+  → answer-folder + exercises.<exercise-id>.answer-file
+```
+
+The correction's `answer-folder` is resolved relative to the correction file,
+then `answer-file` is resolved inside it. Both endpoints' files are shown side
+by side; if a student has no answer for an exercise id, that pane is omitted.
+
+When an edge has no explicit `label`, its label defaults to the exercise ids,
+joined with spaces (for example `"E1 E2 S5"`). An explicit `data.label` (or a
 `style.label`) overrides that default.
 
-Paths are resolved relative to the **test folder**, or to the directory
-containing the graph JSON when `test-folder` is absent:
-
-- `"penasa-gemma/le-tue-risposte/esercizio1.py"` → `<test folder>/penasa-gemma/...`
-- `"exercises/two-sum/mira.py"` → `<graph dir>/exercises/two-sum/mira.py`
-- `"../shared/file.js"` → `<parent of base folder>/shared/file.js`
+The older object form, which maps an exercise name directly to explicit file
+paths (`{ "E1": ["path/a.py", "path/b.py"] }`), is still accepted. Explicit
+paths are resolved relative to the **test folder**, or to the directory
+containing the graph JSON when `test-folder` is absent.
 
 Absolute paths and paths that escape the granted folder are rejected.
 

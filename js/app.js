@@ -29,6 +29,7 @@ const PALETTE = [
 const MAX_GRAPH_FILE_SIZE = 25 * 1024 * 1024;
 const MAX_PREVIEW_BYTES = 1024 * 1024;
 const MAX_HIGHLIGHT_CHARS = 300000;
+const CORRECTIONS_DIRECTORY = 'correzioni';
 
 const DEFAULT_NODE_SIZE = 32;
 const DEFAULT_EDGE_WIDTH = 2;
@@ -267,6 +268,7 @@ let inspectorToken = 0;
 let inspectorHideTimer = null;
 let objectUrls = new Set();
 let fileCache = new Map();
+let correctionCache = new Map();
 
 let dragDepth = 0;
 let dropBusy = false;
@@ -822,6 +824,7 @@ function setSourceState(source) {
   currentSource = source;
   sourceGeneration += 1;
   fileCache.clear();
+  correctionCache.clear();
   revokeObjectUrls();
 }
 
@@ -1347,8 +1350,8 @@ function countExercises(collection) {
   let count = 0;
 
   collection.edges().forEach((edge) => {
-    const exercises = edge.data('exercises');
-    if (isStyleObject(exercises)) count += Object.keys(exercises).length;
+    const exerciseIds = getExerciseIds(edge);
+    if (exerciseIds) count += exerciseIds.length;
   });
 
   return count;
@@ -1454,8 +1457,8 @@ function openInspector(edge) {
   clearTimeout(inspectorHideTimer);
 
   currentEdgeId = edge.id();
-  const exercises = getExercises(edge);
-  currentExercise = exercises ? Object.keys(exercises)[0] : null;
+  const exerciseIds = getExerciseIds(edge);
+  currentExercise = exerciseIds ? exerciseIds[0] : null;
 
   cy.edges().forEach((otherEdge) => {
     if (otherEdge.id() !== edge.id()) {
@@ -1511,7 +1514,7 @@ function refreshInspector() {
   renderInspector();
 }
 
-function renderInspector() {
+async function renderInspector() {
   if (!cy) return;
 
   const edge = cy.getElementById(currentEdgeId);
@@ -1528,38 +1531,37 @@ function renderInspector() {
   const target = String(data.target ?? '');
   const confidence = getEdgeConfidence(edge);
   const hasConfidence = confidence != null;
-  const exercises = getExercises(edge);
+  const exerciseIds = getExerciseIds(edge);
 
-  if (exercises && !exercises[currentExercise]) {
-    currentExercise = Object.keys(exercises)[0];
+  if (exerciseIds && !exerciseIds.includes(currentExercise)) {
+    currentExercise = exerciseIds[0];
   }
 
   const label = getElementLabel(edge);
   els.inspectorTitle.textContent = label || `${source} → ${target}`;
   els.inspectorTitle.title = label || `${source} → ${target}`;
 
-  const exerciseCount = exercises ? Object.keys(exercises).length : 0;
+  const exerciseCount = exerciseIds ? exerciseIds.length : 0;
   const metaParts = [`${source} → ${target}`, `id ${data.id}`];
   if (exerciseCount > 0) metaParts.push(formatCount(exerciseCount, 'exercise set'));
   els.inspectorMeta.textContent = metaParts.join(' · ');
 
   renderConfidenceBadge(hasConfidence ? confidence : null);
 
-  renderExerciseTabs(exercises);
+  renderExerciseTabs(exerciseIds);
   renderInspectorNotice();
 
   els.inspectorSplit.replaceChildren();
   els.inspectorSplit.hidden = true;
   els.inspectorEmpty.hidden = true;
 
-  if (!exercises) {
+  if (!exerciseIds) {
     showEmptyState({
       icon: 'file',
-      title: 'No exercise files on this edge',
+      title: 'No exercises on this edge',
       message:
-        'Add an “exercises” object to the edge data to open files here. Paths are resolved relative to the graph file.',
-      sample:
-        '"exercises": {\n  "exercise-name": ["path/to/file1", "path/to/file2"]\n}'
+        'Add an “exercises” array of exercise ids to the edge data to open the students’ answer files here.',
+      sample: '"exercises": ["E1", "E2"]'
     });
     return;
   }
@@ -1580,7 +1582,25 @@ function renderInspector() {
   els.inspectorEmpty.hidden = true;
   els.inspectorSplit.hidden = false;
 
-  const entry = exercises[currentExercise];
+  let filesByExercise;
+
+  try {
+    filesByExercise = await resolveExerciseFiles(edge, exerciseIds);
+  } catch (error) {
+    if (token !== inspectorToken) return;
+    showEmptyState({
+      icon: 'warning',
+      title: 'Could not resolve exercise files',
+      message: error && error.message ? error.message : String(error),
+      actionLabel: 'Retry',
+      onAction: () => renderInspector()
+    });
+    return;
+  }
+
+  if (token !== inspectorToken) return;
+
+  const entry = filesByExercise[currentExercise] || [];
   renderPanes(entry, token);
 }
 
@@ -1617,24 +1637,22 @@ function renderConfidenceBadge(confidence) {
   badge.append(track, value);
 }
 
-function renderExerciseTabs(exercises) {
+function renderExerciseTabs(exerciseIds) {
   els.exerciseTabs.replaceChildren();
 
-  if (!exercises) {
+  if (!exerciseIds || exerciseIds.length === 0) {
     els.exerciseTabs.hidden = true;
     return;
   }
 
-  const names = Object.keys(exercises);
-
-  if (names.length <= 1) {
+  if (exerciseIds.length <= 1) {
     els.exerciseTabs.hidden = true;
     return;
   }
 
   els.exerciseTabs.hidden = false;
 
-  for (const name of names) {
+  for (const name of exerciseIds) {
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'exercise-tab';
@@ -1723,7 +1741,8 @@ function renderPanes(files, token) {
     showEmptyState({
       icon: 'file',
       title: 'This exercise has no files',
-      message: 'The exercises entry does not list any file paths.'
+      message:
+        'No answer files were found. Check the students’ correction files for this exercise id.'
     });
     return;
   }
@@ -2156,16 +2175,130 @@ function cacheKey(path) {
   return `${sourceGeneration}:${path}`;
 }
 
-function getExercises(edge) {
+function getExerciseIds(edge) {
   const exercises = edge.data('exercises');
+
+  if (Array.isArray(exercises)) {
+    const ids = exercises
+      .filter((id) => typeof id === 'string' && id.trim() !== '')
+      .map((id) => id.trim());
+    return ids.length ? ids : null;
+  }
 
   if (!isStyleObject(exercises)) return null;
 
-  const entries = Object.entries(exercises).filter(
-    ([name, files]) => name && Array.isArray(files) && files.length > 0
-  );
+  const names = Object.entries(exercises)
+    .filter(([name, files]) => name && Array.isArray(files) && files.length > 0)
+    .map(([name]) => name);
 
-  return entries.length ? Object.fromEntries(entries) : null;
+  return names.length ? names : null;
+}
+
+async function resolveExerciseFiles(edge, exerciseIds) {
+  const exercises = edge.data('exercises');
+
+  // Legacy format: the edge already stores the explicit file paths.
+  if (isStyleObject(exercises)) {
+    return Object.fromEntries(
+      Object.entries(exercises).filter(
+        ([name, files]) => name && Array.isArray(files) && files.length > 0
+      )
+    );
+  }
+
+  const filesByExercise = Object.fromEntries(
+    exerciseIds.map((exerciseId) => [exerciseId, []])
+  );
+  const studentIds = [
+    ...new Set(
+      [edge.data('source'), edge.data('target')]
+        .filter((value) => value != null && String(value).trim() !== '')
+        .map((value) => String(value).trim())
+    )
+  ];
+
+  for (const studentId of studentIds) {
+    const correction = await loadCorrection(studentId);
+    if (!correction || !isStyleObject(correction.exercises)) continue;
+
+    const answerFolder =
+      typeof correction['answer-folder'] === 'string'
+        ? correction['answer-folder'].trim()
+        : '';
+    let baseFolder;
+
+    try {
+      baseFolder = answerFolder
+        ? resolveDirectoryFrom(CORRECTIONS_DIRECTORY, answerFolder)
+        : CORRECTIONS_DIRECTORY;
+    } catch (error) {
+      throw new SourceError(
+        'io',
+        `Invalid answer folder in “${studentId}.json”: ${error.message}`
+      );
+    }
+
+    for (const exerciseId of exerciseIds) {
+      const entry = correction.exercises[exerciseId];
+      if (!entry || !isStyleObject(entry)) continue;
+
+      const answerFile =
+        typeof entry['answer-file'] === 'string' ? entry['answer-file'].trim() : '';
+      if (!answerFile) continue;
+
+      try {
+        filesByExercise[exerciseId].push(resolveFrom(baseFolder, answerFile));
+      } catch (error) {
+        throw new SourceError(
+          'io',
+          `Invalid answer file for exercise “${exerciseId}” in “${studentId}.json”: ${error.message}`
+        );
+      }
+    }
+  }
+
+  return filesByExercise;
+}
+
+async function loadCorrection(studentId) {
+  const key = String(studentId);
+
+  if (correctionCache.has(key)) return correctionCache.get(key);
+
+  const relativePath = `${CORRECTIONS_DIRECTORY}/${key}.json`;
+  const resolvedPath = resolveExercisePath(relativePath);
+  const file = await readSourceFile(resolvedPath);
+
+  let text;
+  try {
+    text = await file.text();
+  } catch {
+    throw new SourceError('io', `Could not read correction “${relativePath}”.`, {
+      path: relativePath
+    });
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(text.replace(/^\uFEFF/, ''));
+  } catch (error) {
+    throw new SourceError(
+      'io',
+      `Could not parse correction “${relativePath}”: ${error.message}`,
+      { path: relativePath }
+    );
+  }
+
+  if (!isStyleObject(parsed)) {
+    throw new SourceError(
+      'io',
+      `Correction “${relativePath}” must contain a JSON object.`,
+      { path: relativePath }
+    );
+  }
+
+  correctionCache.set(key, parsed);
+  return parsed;
 }
 
 function getElementLabel(element) {
@@ -2217,13 +2350,14 @@ function showTooltip(element, event) {
       meta.push('No confidence value');
     }
 
-    const exercises = getExercises(element);
-    if (exercises) {
-      const names = Object.keys(exercises);
-      meta.push(formatCount(names.length, 'exercise set'));
-      extra.push(`Exercises: ${names.slice(0, 4).join(', ')}${names.length > 4 ? '…' : ''}`);
+    const exerciseIds = getExerciseIds(element);
+    if (exerciseIds) {
+      meta.push(formatCount(exerciseIds.length, 'exercise set'));
+      extra.push(
+        `Exercises: ${exerciseIds.slice(0, 4).join(', ')}${exerciseIds.length > 4 ? '…' : ''}`
+      );
     } else {
-      meta.push('No exercise files');
+      meta.push('No exercises');
     }
   } else {
     meta.push(`Node · ${data.id}`);

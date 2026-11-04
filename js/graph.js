@@ -13,9 +13,11 @@ const DEFAULT_EDGE_WIDTH = 2;
  *
  * Edge data extensions:
  *   confidence: number in [0, 1]
- *   exercises:  { [exerciseName: string]: string[] }
+ *   exercises:  one of
+ *     - string[] of exercise ids (resolved through each student's correction file)
+ *     - { [exerciseName: string]: string[] } of explicit file paths (legacy)
  *
- * Edges without an explicit label use the exercise names as their label.
+ * Edges without an explicit label use the exercise names/ids as their label.
  */
 export function parseGraph(raw, fallbackName = 'Untitled graph') {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
@@ -144,8 +146,12 @@ export function parseGraph(raw, fallbackName = 'Untitled graph') {
       data.exercises = exercises;
       exerciseCount += 1;
 
-      // Without an explicit label, use the exercise names as the edge label.
-      if (!hasLabel) data.label = Object.keys(exercises).join(' ');
+      // Without an explicit label, use the exercise names/ids as the edge label.
+      if (!hasLabel) {
+        data.label = Array.isArray(exercises)
+          ? exercises.join(' ')
+          : Object.keys(exercises).join(' ');
+      }
     } else {
       delete data.exercises;
     }
@@ -272,6 +278,28 @@ function normalizeConfidence(value, edgeId, warnings) {
 
 function normalizeExercises(value, edgeId, warnings) {
   if (value == null) return null;
+
+  if (Array.isArray(value)) {
+    const ids = [];
+    const seen = new Set();
+
+    for (const item of value) {
+      if (typeof item !== 'string' || item.trim() === '') {
+        warnings.push(
+          `Edge “${edgeId}” has an exercise id that is not a non-empty string; it was skipped.`
+        );
+        continue;
+      }
+
+      const id = item.trim();
+      if (seen.has(id)) continue;
+
+      seen.add(id);
+      ids.push(id);
+    }
+
+    return ids.length > 0 ? ids : null;
+  }
 
   if (!isPlainObject(value)) {
     warnings.push(`Edge “${edgeId}” has an invalid “exercises” value; it was ignored.`);

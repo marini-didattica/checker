@@ -82,6 +82,37 @@ test('edge labels default to exercise keys unless an explicit label is set', () 
   assert.equal(parsed.elements[4].data.label, undefined);
 });
 
+test('accepts exercise ids and uses them as the default edge label', () => {
+  const parsed = parseGraph({
+    elements: {
+      nodes: [{ data: { id: 'a' } }, { data: { id: 'b' } }],
+      edges: [
+        {
+          data: {
+            source: 'a',
+            target: 'b',
+            exercises: ['E1', 'E2', 'E2', '', 42]
+          }
+        },
+        {
+          data: {
+            source: 'a',
+            target: 'b',
+            label: 'explicit',
+            exercises: ['E1', 'S5']
+          }
+        }
+      ]
+    }
+  });
+
+  assert.deepEqual(parsed.elements[2].data.exercises, ['E1', 'E2']);
+  assert.equal(parsed.elements[2].data.label, 'E1 E2');
+  assert.deepEqual(parsed.elements[3].data.exercises, ['E1', 'S5']);
+  assert.equal(parsed.elements[3].data.label, 'explicit');
+  assert.match(parsed.warnings.join('\n'), /exercise id/);
+});
+
 test('reads the test folder path and warns about invalid values', () => {
   const parsed = parseGraph({
     'test-folder': '..',
