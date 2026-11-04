@@ -164,6 +164,10 @@ visible extent. Edges without a confidence value are never hidden by the filter.
 Because confidence defines the thickness, an edge's `style.width` is ignored
 when `confidence` is present.
 
+When an edge has no explicit `label`, its label defaults to the exercise names,
+joined with spaces (for example `"e1 e2 e5"`). An explicit `data.label` (or a
+`style.label`) overrides that default.
+
 ### `exercises`
 
 An object mapping an exercise name to an array of file paths. The viewer shows

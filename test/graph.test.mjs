@@ -49,6 +49,39 @@ test('parses nodes, edges, confidence, and exercises', () => {
   assert.equal(edge.scratch.styleOverride['target-arrow-color'], '#7ee2b8');
 });
 
+test('edge labels default to exercise keys unless an explicit label is set', () => {
+  const parsed = parseGraph({
+    elements: {
+      nodes: [{ data: { id: 'a' } }, { data: { id: 'b' } }],
+      edges: [
+        {
+          data: {
+            source: 'a',
+            target: 'b',
+            exercises: {
+              e1: ['one.py'],
+              e2: ['two.py']
+            }
+          }
+        },
+        {
+          data: {
+            source: 'a',
+            target: 'b',
+            label: 'custom label',
+            exercises: { e1: ['one.py'] }
+          }
+        },
+        { data: { source: 'b', target: 'a' } }
+      ]
+    }
+  });
+
+  assert.equal(parsed.elements[2].data.label, 'e1 e2');
+  assert.equal(parsed.elements[3].data.label, 'custom label');
+  assert.equal(parsed.elements[4].data.label, undefined);
+});
+
 test('accepts a flat elements array and infers node/edge kinds', () => {
   const parsed = parseGraph({
     elements: [

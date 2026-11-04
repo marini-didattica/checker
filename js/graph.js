@@ -11,6 +11,8 @@ const DEFAULT_EDGE_WIDTH = 2;
  * Graph-specific extensions live in edge data:
  *   confidence: number in [0, 1]
  *   exercises:  { [exerciseName: string]: string[] }
+ *
+ * Edges without an explicit label use the exercise names as their label.
  */
 export function parseGraph(raw, fallbackName = 'Untitled graph') {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
@@ -119,7 +121,8 @@ export function parseGraph(raw, fallbackName = 'Untitled graph') {
     data.source = source;
     data.target = target;
 
-    if (data.label != null) data.label = String(data.label);
+    const hasLabel = data.label != null && String(data.label).trim() !== '';
+    if (hasLabel) data.label = String(data.label);
 
     let id = data.id == null || data.id === '' ? '' : String(data.id);
     if (!id) id = `edge-${source}-${target}`;
@@ -136,6 +139,9 @@ export function parseGraph(raw, fallbackName = 'Untitled graph') {
     if (exercises) {
       data.exercises = exercises;
       exerciseCount += 1;
+
+      // Without an explicit label, use the exercise names as the edge label.
+      if (!hasLabel) data.label = Object.keys(exercises).join(' ');
     } else {
       delete data.exercises;
     }
