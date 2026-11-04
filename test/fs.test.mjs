@@ -7,6 +7,7 @@ import {
   extensionOf,
   findGraphCandidates,
   normalizeRelativePath,
+  resolveDirectoryFrom,
   resolveFrom
 } from '../js/fs.js';
 
@@ -34,6 +35,17 @@ test('resolves exercise paths from the graph directory', () => {
   assert.throws(() => resolveFrom('graph', 'C:\\Users\\me\\file.js'), /Absolute paths/);
   assert.throws(() => resolveFrom('graph', 'file:///tmp/a.js'), /Absolute paths/);
   assert.throws(() => resolveFrom('graph', '../../outside.js'), /outside the granted folder/);
+});
+
+test('resolves a test folder relative to the graph file', () => {
+  assert.equal(resolveDirectoryFrom('misc', '..'), '');
+  assert.equal(resolveDirectoryFrom('misc/sub', '../..'), '');
+  assert.equal(resolveDirectoryFrom('misc', '.'), 'misc');
+  assert.equal(resolveDirectoryFrom('', 'test'), 'test');
+  assert.equal(resolveDirectoryFrom('a/b', '../../test'), 'test');
+  assert.throws(() => resolveDirectoryFrom('', '..'), /outside the granted folder/);
+  assert.throws(() => resolveDirectoryFrom('misc', '../..'), /outside the granted folder/);
+  assert.throws(() => resolveDirectoryFrom('misc', '/tmp'), /Absolute paths/);
 });
 
 test('path helpers', () => {

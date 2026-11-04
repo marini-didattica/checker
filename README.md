@@ -41,12 +41,15 @@ Try the included example:
 ### Folder access
 
 Exercise files are read from the local filesystem, so the browser needs explicit
-permission. Access to the directory containing the graph file is requested **as
+permission. Access to the folder containing the test material is requested **as
 soon as the JSON file is loaded**; the graph still renders if you cancel the
 prompt. You can grant or change access later from the **Grant** / **Change**
 button in the graph panel.
 
-Paths in the JSON are resolved **relative to the graph file's directory**.
+When the graph declares a `test-folder`, grant access to the folder that
+contains the whole test material (the one the `test-folder` path points to), not
+just the directory with the JSON file. The same relative test folder is then
+used for every exercise path.
 
 - In Chromium browsers (Chrome, Edge, Brave, Arc, …) the app uses the
   [File System Access API](https://developer.mozilla.org/docs/Web/API/File_System_Access_API)
@@ -86,12 +89,13 @@ inline; other binary files show a size notice instead.
 
 ## JSON format
 
-The document is standard Cytoscape.js element JSON, plus two keys inside edge
-`data`:
+The document is standard Cytoscape.js element JSON, plus a top-level
+`test-folder` and two keys inside edge `data`:
 
 ```json
 {
   "name": "My graph",
+  "test-folder": "..",
   "elements": {
     "nodes": [
       {
@@ -164,9 +168,23 @@ visible extent. Edges without a confidence value are never hidden by the filter.
 Because confidence defines the thickness, an edge's `style.width` is ignored
 when `confidence` is present.
 
-When an edge has no explicit `label`, its label defaults to the exercise names,
-joined with spaces (for example `"e1 e2 e5"`). An explicit `data.label` (or a
-`style.label`) overrides that default.
+### `test-folder`
+
+A path, **relative to the graph JSON file**, that points to the folder holding
+the whole test material. Exercise paths are resolved from that folder. For
+example, a graph stored in `prova-1/misc/grafo-copie.json` can declare:
+
+```json
+{ "test-folder": ".." }
+```
+
+The graph is then expected to access `prova-1/` (the parent of `misc/`) and its
+exercise paths are read from there. When such a graph is dropped, the viewer
+asks for access to the test folder immediately so the exercise files are
+available in the inspector.
+
+`test-folder` is optional. Without it, exercise paths are resolved relative to
+the directory containing the graph JSON file.
 
 ### `exercises`
 
@@ -174,10 +192,16 @@ An object mapping an exercise name to an array of file paths. The viewer shows
 the files side by side. The format is pair-oriented, but any number of paths is
 accepted; two panes are the normal layout and extra files wrap to another row.
 
-Paths are resolved relative to the **directory containing the graph JSON**:
+When an edge has no explicit `label`, its label defaults to the exercise names,
+joined with spaces (for example `"e1 e2 e5"`). An explicit `data.label` (or a
+`style.label`) overrides that default.
 
+Paths are resolved relative to the **test folder**, or to the directory
+containing the graph JSON when `test-folder` is absent:
+
+- `"penasa-gemma/le-tue-risposte/esercizio1.py"` → `<test folder>/penasa-gemma/...`
 - `"exercises/two-sum/mira.py"` → `<graph dir>/exercises/two-sum/mira.py`
-- `"../shared/file.js"` → `<parent of graph dir>/shared/file.js`
+- `"../shared/file.js"` → `<parent of base folder>/shared/file.js`
 
 Absolute paths and paths that escape the granted folder are rejected.
 

@@ -34,9 +34,10 @@
         <p class="eyebrow">Cytoscape.js · confidence viewer</p>
         <h1>Drop a graph JSON file</h1>
         <p id="drop-help" class="muted">
-          Drop the file anywhere on this panel, or open the folder that contains it.
-          Edges are drawn with a thickness that follows <code>confidence</code>, and
-          clicking one opens its exercise files side by side.
+          Drop the file anywhere on this panel, or open the folder with the test
+          material. Edges are drawn with a thickness that follows
+          <code>confidence</code>, and clicking one opens its exercise files side
+          by side.
         </p>
 
         <pre class="format-sample"><code>{
@@ -65,9 +66,10 @@
         </div>
 
         <p class="drop-note">
-          Access to the graph file’s directory is requested as soon as the file is
-          loaded. Paths inside <code>exercises</code> are resolved relative to that
-          directory.
+          Access to the test folder is requested as soon as the file is loaded.
+          Paths inside <code>exercises</code> are resolved relative to
+          <code>test-folder</code>, or to the graph file’s directory when it is
+          omitted.
         </p>
         <p id="drop-error" class="drop-error" role="alert" hidden></p>
       </div>

@@ -9,6 +9,7 @@ import {
   extensionOf,
   findGraphCandidates,
   isImagePath,
+  resolveDirectoryFrom,
   resolveFrom
 } from './fs.js';
 import { highlightCode } from './highlight.js';
@@ -706,6 +707,7 @@ async function openFileContent(file, options = {}) {
     fileName: file.name,
     relPath,
     source,
+    testFolder: parsed.testFolder,
     stats: parsed.stats,
     sourceMissingGraph: Boolean(source && !relPath)
   };
@@ -828,7 +830,7 @@ function scheduleFolderPrompt() {
 
   folderPromptPending = true;
 
-  // Let the graph paint first, then ask for the folder that contains the file.
+  // Let the graph paint first, then ask for the test folder.
   setTimeout(() => {
     folderPromptPending = false;
     if (!graphInfo || graphInfo.source) return;
@@ -1381,12 +1383,11 @@ function updateFolderRow() {
     els.folderRow.dataset.state = 'needed';
     els.folderTitle.textContent = 'Folder access needed';
     els.folderTitle.title = 'Grant read access to exercise files';
-    els.folderDetail.textContent = `${formatCount(
-      graphInfo.stats.withExercises,
-      'edge'
-    )} with exercise files`;
+    els.folderDetail.textContent = graphInfo.testFolder
+      ? `${formatCount(graphInfo.stats.withExercises, 'edge')} · select the test folder`
+      : `${formatCount(graphInfo.stats.withExercises, 'edge')} with exercise files`;
     els.folderButton.textContent = 'Grant';
-    els.folderButton.title = 'Grant read access to the folder';
+    els.folderButton.title = 'Grant read access to the test folder';
   }
 }
 
@@ -1567,7 +1568,9 @@ function renderInspector() {
     showEmptyState({
       icon: 'lock',
       title: 'Folder access needed',
-      message: `The exercise files for “${graphInfo ? graphInfo.fileName : 'this graph'}” live in its folder. Grant read access to that folder to open them here.`,
+      message: graphInfo && graphInfo.testFolder
+        ? `The exercise files for “${graphInfo.fileName}” live in its test folder. Grant read access to the folder that contains the whole test material to open them here.`
+        : `The exercise files for “${graphInfo ? graphInfo.fileName : 'this graph'}” live in its folder. Grant read access to that folder to open them here.`,
       actionLabel: 'Grant folder access',
       onAction: () => requestSource('grant')
     });
@@ -2100,12 +2103,31 @@ function resolveExercisePath(relativePath) {
   if (!graphInfo || !graphInfo.source) {
     throw new SourceError(
       'permission',
-      'Grant read access to the folder that contains the graph file to open its exercises.'
+      'Grant read access to the folder that contains the test material to open its exercises.'
     );
   }
 
-  const baseDirectory = graphInfo.relPath ? dirname(graphInfo.relPath) : '';
-  return resolveFrom(baseDirectory, relativePath);
+  return resolveFrom(getExerciseBaseDirectory(), relativePath);
+}
+
+function getExerciseBaseDirectory() {
+  if (!graphInfo) return '';
+
+  const graphDirectory = graphInfo.relPath ? dirname(graphInfo.relPath) : '';
+
+  if (!graphInfo.testFolder) return graphDirectory;
+
+  try {
+    return resolveDirectoryFrom(graphDirectory, graphInfo.testFolder);
+  } catch (error) {
+    if (error instanceof PathError) {
+      throw new SourceError(
+        'permission',
+        `The test folder “${graphInfo.testFolder}” is outside “${graphInfo.source.name}”. Grant access to the folder that contains the test material.`
+      );
+    }
+    throw error;
+  }
 }
 
 function readSourceFile(path) {
@@ -2113,7 +2135,7 @@ function readSourceFile(path) {
     return Promise.reject(
       new SourceError(
         'permission',
-        'Grant read access to the folder that contains the graph file to open its exercises.'
+        'Grant read access to the folder that contains the test material to open its exercises.'
       )
     );
   }

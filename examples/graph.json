@@ -1,5 +1,6 @@
 {
   "name": "Cheating Graph · Algorithms Study Group",
+  "test-folder": ".",
   "elements": {
     "nodes": [
       {

@@ -103,6 +103,54 @@ export function resolveFrom(baseDirectory, relativePath) {
   return normalizeRelativePath(combined);
 }
 
+/**
+ * Resolve a directory path against another directory in the granted folder.
+ * Unlike resolveFrom, a “..” segment may resolve to the folder root, and “.”
+ * names the base directory itself.
+ */
+export function resolveDirectoryFrom(baseDirectory, relativePath) {
+  if (typeof relativePath !== 'string') {
+    throw new PathError('The folder path must be a string.');
+  }
+
+  const rawRelative = relativePath.trim().replace(/\\/g, '/');
+
+  if (!rawRelative) {
+    throw new PathError('The folder path is empty.');
+  }
+  if (
+    rawRelative.startsWith('/') ||
+    /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(rawRelative)
+  ) {
+    throw new PathError('Absolute paths are not allowed. Use a path relative to the graph file.');
+  }
+
+  let base = '';
+  if (baseDirectory) {
+    const rawBase = String(baseDirectory).trim().replace(/\\/g, '/');
+    if (rawBase && rawBase !== '.') {
+      base = normalizeRelativePath(rawBase);
+    }
+  }
+
+  const combined = base ? `${base}/${rawRelative}` : rawRelative;
+  const parts = [];
+
+  for (const segment of combined.split('/')) {
+    if (!segment || segment === '.') continue;
+    if (segment === '..') {
+      if (parts.length === 0) {
+        throw new PathError('The path points outside the granted folder.');
+      }
+      parts.pop();
+      continue;
+    }
+    parts.push(segment);
+  }
+
+  return parts.join('/');
+}
+
 export function dirname(path) {
   const parts = String(path).replace(/\\/g, '/').split('/').filter(Boolean);
   parts.pop();

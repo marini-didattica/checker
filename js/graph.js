@@ -8,7 +8,10 @@ const DEFAULT_EDGE_WIDTH = 2;
  *   { "elements": { "nodes": [...], "edges": [...] } }
  *   { "elements": [ ...nodes and edges... ] }
  *
- * Graph-specific extensions live in edge data:
+ * Graph-specific extensions:
+ *   test-folder: path (relative to the graph file) containing the test material
+ *
+ * Edge data extensions:
  *   confidence: number in [0, 1]
  *   exercises:  { [exerciseName: string]: string[] }
  *
@@ -52,6 +55,7 @@ export function parseGraph(raw, fallbackName = 'Untitled graph') {
   }
 
   const warnings = [];
+  const testFolder = normalizeTestFolder(raw['test-folder'], warnings);
   const nodeIds = new Set();
 
   const nodes = nodesRaw.map((item, index) => {
@@ -166,6 +170,7 @@ export function parseGraph(raw, fallbackName = 'Untitled graph') {
 
   return {
     name,
+    testFolder,
     elements: [...nodes, ...edges],
     stats: {
       nodes: nodes.length,
@@ -209,6 +214,23 @@ function splitElements(elements) {
   }
 
   return { nodes, edges };
+}
+
+function normalizeTestFolder(value, warnings) {
+  if (value == null) return null;
+
+  if (typeof value !== 'string') {
+    warnings.push('“test-folder” must be a string path; it was ignored.');
+    return null;
+  }
+
+  const folder = value.trim();
+  if (!folder) {
+    warnings.push('“test-folder” is empty; it was ignored.');
+    return null;
+  }
+
+  return folder;
 }
 
 function normalizeStyle(rawStyle, label, warnings) {

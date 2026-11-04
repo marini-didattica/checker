@@ -82,6 +82,26 @@ test('edge labels default to exercise keys unless an explicit label is set', () 
   assert.equal(parsed.elements[4].data.label, undefined);
 });
 
+test('reads the test folder path and warns about invalid values', () => {
+  const parsed = parseGraph({
+    'test-folder': '..',
+    elements: { nodes: [{ data: { id: 'a' } }], edges: [] }
+  });
+  assert.equal(parsed.testFolder, '..');
+
+  const missing = parseGraph({
+    elements: { nodes: [{ data: { id: 'a' } }], edges: [] }
+  });
+  assert.equal(missing.testFolder, null);
+
+  const invalid = parseGraph({
+    'test-folder': 42,
+    elements: { nodes: [{ data: { id: 'a' } }], edges: [] }
+  });
+  assert.equal(invalid.testFolder, null);
+  assert.match(invalid.warnings.join('\n'), /test-folder/);
+});
+
 test('accepts a flat elements array and infers node/edge kinds', () => {
   const parsed = parseGraph({
     elements: [
