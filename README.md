@@ -38,32 +38,37 @@ HTML, CSS, JS, and `examples/` files.
 
 ## Open a graph
 
-There are three ways in:
+The quickest way in is to choose the test folder:
 
-1. **Drop a graph JSON file** anywhere on the drop card or, once a graph is open,
-   anywhere on the window.
-2. **Browse graph file** to pick one JSON file.
-3. **Open folder…** to grant access to a folder and choose from the `.json` files
-   inside it. This is the quickest way to get both the graph and its exercise
-   files.
+1. **Open test folder…** to grant read access to the folder that contains the
+   test material. The viewer finds the graph JSON inside it and can read the
+   exercise files immediately.
+2. **Drop the test folder** anywhere on the drop card (or on the window once a
+   graph is open).
+3. **Browse graph file** to pick one JSON file, or drop a JSON file. The viewer
+   then asks immediately for the test folder before you open any exercise.
 
 Try the included example:
 
-- Drop `examples/graph.json` onto the page, or
-- choose **Open folder…** and select the `examples/` directory.
+- Choose **Open test folder…** and select the `examples/` directory, or
+- drop the `examples/` folder onto the page.
 
 ### Folder access
 
 Exercise files are read from the local filesystem, so the browser needs explicit
-permission. Access to the folder containing the test material is requested **as
-soon as the JSON file is loaded**; the graph still renders if you cancel the
-prompt. You can grant or change access later from the **Grant** / **Change**
-button in the graph panel.
+permission. Choosing the test folder first grants that permission upfront; if
+you open a single JSON file instead, the viewer shows a folder prompt straight
+away, not when you first click an edge.
 
-When the graph declares a `test-folder`, grant access to the folder that
-contains the whole test material (the one the `test-folder` path points to), not
-just the directory with the JSON file. The same relative test folder is then
-used for every exercise path.
+When the graph declares a `test-folder`, select the folder that contains the
+whole test material (the one the `test-folder` path points to), not just the
+directory with the JSON file. The same relative test folder is then used for
+every exercise path.
+
+Browsers do not reveal the path or parent folder of a single selected file, so a
+folder picker cannot be pointed at the JSON's parent automatically. Opening the
+test folder first avoids that limitation. When a JSON file is opened first,
+Chromium starts the picker in the file's own folder where possible.
 
 - In Chromium browsers (Chrome, Edge, Brave, Arc, …) the app uses the
   [File System Access API](https://developer.mozilla.org/docs/Web/API/File_System_Access_API)
@@ -72,8 +77,8 @@ used for every exercise path.
   standard folder picker (`<input webkitdirectory>`). The selected folder's files
   are read through the browser's normal file-list mechanism.
 
-If the browser requires a fresh click before it will show a folder picker, use
-the **Grant** button in the graph panel.
+You can grant or change access later from the **Grant** / **Change** button in
+the graph panel.
 
 Access is **read-only**. Nothing is uploaded, and the Node server serves only the
 app's own static files. File reads happen entirely in the browser.

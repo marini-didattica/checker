@@ -1506,6 +1506,18 @@ input[type="range"]::-moz-range-thumb {
   font-size: 0.76rem;
 }
 
+.folder-dialog-copy {
+  margin: 16px 0 0;
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.6;
+}
+
+.folder-dialog .dialog-foot {
+  align-items: center;
+  gap: 10px;
+}
+
 .dialog-filter-wrap {
   position: relative;
   margin-top: 14px;

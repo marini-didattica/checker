@@ -242,7 +242,11 @@ const els = {
   dialogFilterWrap: document.getElementById('dialog-filter-wrap'),
   dialogFilter: document.getElementById('dialog-filter'),
   graphList: document.getElementById('graph-list'),
-  graphDialogEmpty: document.getElementById('graph-dialog-empty')
+  graphDialogEmpty: document.getElementById('graph-dialog-empty'),
+  folderDialog: document.getElementById('folder-dialog'),
+  folderDialogSubtitle: document.getElementById('folder-dialog-subtitle'),
+  folderDialogCopy: document.getElementById('folder-dialog-copy'),
+  folderDialogChoose: document.getElementById('folder-dialog-choose')
 };
 
 const settings = {
@@ -282,7 +286,6 @@ let toastHideTimer = null;
 
 let pendingFolderIntent = null;
 let pickingSource = false;
-let folderPromptPending = false;
 
 init();
 
@@ -335,20 +338,20 @@ function init() {
 function bindUi() {
   els.card.addEventListener('click', (event) => {
     if (event.target.closest('button')) return;
-    els.fileInput.click();
+    requestSource('open');
   });
 
   els.card.addEventListener('keydown', (event) => {
     if (event.target !== els.card) return;
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
-      els.fileInput.click();
+      requestSource('open');
     }
   });
 
   els.browseFile.addEventListener('click', (event) => {
     event.stopPropagation();
-    els.fileInput.click();
+    browseGraphFile();
   });
 
   els.openFolder.addEventListener('click', (event) => {
@@ -357,7 +360,7 @@ function bindUi() {
   });
 
   els.openFile.addEventListener('click', () => els.fileInput.click());
-  els.folderButton.addEventListener('click', () => requestSource('grant'));
+  els.folderButton.addEventListener('click', () => requestGraphFolder());
 
   els.fileInput.addEventListener('change', () => {
     const [file] = els.fileInput.files || [];
@@ -485,6 +488,15 @@ function bindUi() {
     if (event.target === els.graphDialog) els.graphDialog.close('cancel');
   });
 
+  els.folderDialog.addEventListener('click', (event) => {
+    if (event.target === els.folderDialog) els.folderDialog.close('cancel');
+  });
+
+  els.folderDialogChoose.addEventListener('click', () => {
+    if (els.folderDialog.open) els.folderDialog.close('choose');
+    requestGraphFolder();
+  });
+
   els.dialogFilter.addEventListener('input', applyDialogFilter);
 }
 
@@ -575,7 +587,7 @@ async function handleDrop(event) {
     if (directory) {
       const allowed = await ensureReadPermission(directory);
       if (!allowed) {
-        failLoad('Folder access was denied. Drop the folder again or use “Open folder”.');
+        failLoad('Folder access was denied. Drop the folder again or use “Open test folder”.');
         return;
       }
       const source = new DirectorySource(directory);
@@ -583,31 +595,33 @@ async function handleDrop(event) {
       return;
     }
 
-    const files = [];
+    const entries = [];
 
     for (const handle of handles) {
       if (handle.kind !== 'file') continue;
       const allowed = await ensureReadPermission(handle);
       if (!allowed) continue;
       try {
-        files.push(await handle.getFile());
+        entries.push({ file: await handle.getFile(), handle });
       } catch {
         // Fall back to dataTransfer.files below.
       }
     }
 
-    if (!files.length) {
-      files.push(...Array.from(dataTransfer.files || []));
+    if (!entries.length) {
+      entries.push(
+        ...Array.from(dataTransfer.files || []).map((file) => ({ file, handle: null }))
+      );
     }
 
-    if (!files.length) {
+    if (!entries.length) {
       failLoad(
-        'That drop did not contain a file. Dropped folders need “Open folder” in this browser.'
+        'That drop did not contain a file. Dropped folders need “Open test folder” in this browser.'
       );
       return;
     }
 
-    await openDroppedFiles(files);
+    await openDroppedFiles(entries);
   } finally {
     dropBusy = false;
   }
@@ -632,11 +646,50 @@ function openSingleFile(file) {
     failLoad('Choose a “.json” graph file.');
     return;
   }
-  openDroppedFiles([file]).catch((error) => failLoad(error.message));
+  openDroppedFiles([{ file, handle: null }]).catch((error) => failLoad(error.message));
 }
 
-async function openDroppedFiles(files) {
-  const candidates = files.filter((file) => isJsonFile(file.name));
+async function browseGraphFile() {
+  if (typeof window.showOpenFilePicker === 'function' && window.isSecureContext) {
+    let handles;
+
+    try {
+      handles = await window.showOpenFilePicker({
+        id: 'cheating-graph-file',
+        multiple: false,
+        types: [
+          {
+            description: 'Graph JSON',
+            accept: { 'application/json': ['.json'] }
+          }
+        ]
+      });
+    } catch (error) {
+      if (error && error.name === 'AbortError') return;
+      showToast(
+        `Could not open the file picker: ${error && error.message ? error.message : 'unknown error'}`,
+        'error'
+      );
+      return;
+    }
+
+    const [handle] = handles || [];
+
+    if (!handle) return;
+
+    try {
+      await openDroppedFiles([{ file: await handle.getFile(), handle }]);
+    } catch (error) {
+      failLoad(error.message);
+    }
+    return;
+  }
+
+  els.fileInput.click();
+}
+
+async function openDroppedFiles(entries) {
+  const candidates = entries.filter(({ file }) => isJsonFile(file.name));
 
   if (!candidates.length) {
     failLoad('That drop did not contain a “.json” graph file.');
@@ -645,7 +698,7 @@ async function openDroppedFiles(files) {
 
   const errors = [];
 
-  for (const file of candidates) {
+  for (const { file, handle } of candidates) {
     let source = null;
     let relPath = null;
 
@@ -663,7 +716,11 @@ async function openDroppedFiles(files) {
     }
 
     try {
-      const parsed = await openFileContent(file, { source, relPath });
+      const parsed = await openFileContent(file, {
+        source,
+        relPath,
+        fileHandle: handle
+      });
       clearDropError();
       if (candidates.length > 1) {
         showToast(`Opened “${file.name}”.`, 'info');
@@ -702,6 +759,7 @@ async function openFileContent(file, options = {}) {
   const parsed = parseGraph(raw, stem(file.name));
   const source = options.source || null;
   const relPath = options.relPath || null;
+  const fileHandle = options.fileHandle || null;
 
   setSourceState(source);
   graphInfo = {
@@ -709,6 +767,7 @@ async function openFileContent(file, options = {}) {
     fileName: file.name,
     relPath,
     source,
+    fileHandle,
     testFolder: parsed.testFolder,
     stats: parsed.stats,
     sourceMissingGraph: Boolean(source && !relPath)
@@ -716,7 +775,7 @@ async function openFileContent(file, options = {}) {
 
   renderGraph(parsed);
 
-  if (!source) scheduleFolderPrompt();
+  if (!source) promptForFolderAccess();
 
   return parsed;
 }
@@ -828,41 +887,49 @@ function setSourceState(source) {
   revokeObjectUrls();
 }
 
-function scheduleFolderPrompt() {
-  if (!graphInfo || graphInfo.source || folderPromptPending) return;
+function promptForFolderAccess() {
+  if (!graphInfo || graphInfo.source) return;
+  if (!graphInfo.stats.withExercises) return;
+  if (els.folderDialog.open) return;
 
-  folderPromptPending = true;
+  els.folderDialogSubtitle.textContent = graphInfo.fileName;
+  els.folderDialogCopy.textContent = graphInfo.testFolder
+    ? `This graph reads its exercise files from its test folder (“${graphInfo.testFolder}”). Choose the folder that contains the whole test material, then you can open the exercises directly.`
+    : 'Exercise files are read from the folder that contains this graph. Choose that folder to open them directly.';
 
-  // Let the graph paint first, then ask for the test folder.
-  setTimeout(() => {
-    folderPromptPending = false;
-    if (!graphInfo || graphInfo.source) return;
-    requestSource('grant', { automatic: true });
-  }, 0);
+  els.folderDialog.showModal();
+}
+
+function requestGraphFolder() {
+  return requestSource('grant', {
+    startIn: graphInfo && graphInfo.fileHandle ? graphInfo.fileHandle : null
+  });
 }
 
 async function requestSource(intent, options = {}) {
   if (pickingSource) return;
-  const automatic = Boolean(options.automatic);
+  const startIn = options.startIn || null;
   pickingSource = true;
   els.folderButton.disabled = true;
 
   try {
     if (typeof window.showDirectoryPicker === 'function' && window.isSecureContext) {
+      const pickerOptions = {
+        id: 'cheating-graph-folder',
+        mode: 'read'
+      };
+
+      if (startIn) pickerOptions.startIn = startIn;
+
       let handle;
       try {
-        handle = await window.showDirectoryPicker({
-          id: 'cheating-graph-folder',
-          mode: 'read'
-        });
+        handle = await window.showDirectoryPicker(pickerOptions);
       } catch (error) {
         if (error.name === 'AbortError') return;
         if (error.name === 'SecurityError') {
           showToast(
-            automatic
-              ? 'Folder access could not be requested automatically. Use “Grant” in the graph panel to choose the folder.'
-              : 'Folder access needs http://localhost or HTTPS. Start the app with “npm start”.',
-            automatic ? 'warning' : 'error'
+            'Folder access needs http://localhost or HTTPS. Start the app with “npm start”.',
+            'error'
           );
           return;
         }
@@ -1574,7 +1641,7 @@ async function renderInspector() {
         ? `The exercise files for “${graphInfo.fileName}” live in its test folder. Grant read access to the folder that contains the whole test material to open them here.`
         : `The exercise files for “${graphInfo ? graphInfo.fileName : 'this graph'}” live in its folder. Grant read access to that folder to open them here.`,
       actionLabel: 'Grant folder access',
-      onAction: () => requestSource('grant')
+      onAction: () => requestGraphFolder()
     });
     return;
   }
@@ -1692,7 +1759,7 @@ function renderInspectorNotice() {
   button.type = 'button';
   button.className = 'ghost-button small';
   button.textContent = 'Change folder';
-  button.addEventListener('click', () => requestSource('grant'));
+  button.addEventListener('click', () => requestGraphFolder());
 
   els.inspectorNotice.append(icon, copy, button);
 }
@@ -2069,7 +2136,7 @@ function showPaneError(pane, error, relativePath) {
       {
         label: showGrant ? 'Grant access' : 'Change folder',
         primary: showGrant,
-        onClick: () => requestSource('grant')
+        onClick: () => requestGraphFolder()
       }
     ]
   });

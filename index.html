@@ -32,12 +32,12 @@
         </div>
 
         <p class="eyebrow">Cytoscape.js · confidence viewer</p>
-        <h1>Drop a graph JSON file</h1>
+        <h1>Open the test folder</h1>
         <p id="drop-help" class="muted">
-          Drop the file anywhere on this panel, or open the folder with the test
-          material. Edges are drawn with a thickness that follows
-          <code>confidence</code>, and clicking one opens its exercise files side
-          by side.
+          Choose or drop the folder with the test material. The viewer finds the
+          graph JSON inside it and can read every exercise file straight away.
+          Edges are drawn with a thickness that follows <code>confidence</code>,
+          and clicking one opens its files side by side.
         </p>
 
         <pre class="format-sample"><code>{
@@ -59,15 +59,14 @@
 }</code></pre>
 
         <div class="drop-actions">
-          <button id="browse-file" class="primary-button" type="button">Browse graph file</button>
-          <button id="open-folder" class="ghost-button" type="button">Open folder…</button>
+          <button id="open-folder" class="primary-button" type="button">Open test folder…</button>
+          <button id="browse-file" class="ghost-button" type="button">Browse graph file</button>
         </div>
 
         <p class="drop-note">
-          Access to the test folder is requested as soon as the file is loaded.
-          Paths inside <code>exercises</code> are resolved relative to
-          <code>test-folder</code>, or to the graph file’s directory when it is
-          omitted.
+          Choosing the test folder grants read access once, so exercise files open
+          without another prompt. You can also drop a graph JSON file; the viewer
+          will ask for its test folder before you open any exercise.
         </p>
         <p id="drop-error" class="drop-error" role="alert" hidden></p>
       </div>
@@ -76,7 +75,7 @@
     <div id="drop-veil" class="drop-veil" hidden aria-hidden="true">
       <div class="drop-veil-inner">
         <span class="drop-veil-icon" aria-hidden="true">↓</span>
-        <span>Drop to open a graph</span>
+        <span>Drop a test folder or graph JSON</span>
       </div>
     </div>
 
@@ -287,6 +286,30 @@
         </p>
         <footer class="dialog-foot">
           <button class="ghost-button" type="submit" value="cancel">Cancel</button>
+        </footer>
+      </form>
+    </dialog>
+
+    <dialog id="folder-dialog" class="graph-dialog" aria-labelledby="folder-dialog-title">
+      <form method="dialog" class="dialog-card">
+        <header class="dialog-head">
+          <div>
+            <p class="panel-kicker">Exercise files</p>
+            <h2 id="folder-dialog-title">Choose the test folder</h2>
+            <p id="folder-dialog-subtitle" class="dialog-subtitle"></p>
+          </div>
+          <button class="icon-button" type="submit" value="cancel" aria-label="Close">
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+              <path d="m5 5 10 10M15 5 5 15" />
+            </svg>
+          </button>
+        </header>
+        <p id="folder-dialog-copy" class="folder-dialog-copy"></p>
+        <footer class="dialog-foot">
+          <button id="folder-dialog-choose" class="primary-button compact" type="button">
+            Choose folder
+          </button>
+          <button class="ghost-button" type="submit" value="cancel">Later</button>
         </footer>
       </form>
     </dialog>
