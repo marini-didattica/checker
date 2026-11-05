@@ -69,6 +69,19 @@ test('FileListSource strips the selected root and reads files', async () => {
   await assert.rejects(() => source.read('missing.js'), /File not found/);
 });
 
+test('FileListSource accepts explicit relative paths', async () => {
+  const graph = { name: 'a.json' };
+  const exercise = { name: 'b.js' };
+  const source = new FileListSource([
+    { file: graph, path: 'root/a.json' },
+    { file: exercise, path: 'root/exercises/b.js' }
+  ]);
+
+  assert.equal(source.name, 'root');
+  assert.deepEqual(await source.listGraphFiles(), [{ path: 'a.json', name: 'a.json' }]);
+  assert.equal(await source.read('exercises/b.js'), exercise);
+});
+
 test('findGraphCandidates matches by basename case-insensitively', () => {
   const files = [
     { path: 'graphs/Graph.json', name: 'Graph.json' },

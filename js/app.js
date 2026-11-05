@@ -27,6 +27,8 @@ const PALETTE = [
 ];
 
 const MAX_GRAPH_FILE_SIZE = 25 * 1024 * 1024;
+const MAX_GRAPH_DISCOVERY_FILES = 60;
+const MAX_GRAPH_DISCOVERY_BYTES = 8 * 1024 * 1024;
 const MAX_PREVIEW_BYTES = 1024 * 1024;
 const MAX_HIGHLIGHT_CHARS = 300000;
 const CORRECTIONS_DIRECTORY = 'correzioni';
@@ -558,6 +560,55 @@ function hasFiles(event) {
   );
 }
 
+function readDirectoryEntries(reader) {
+  return new Promise((resolve, reject) => {
+    const entries = [];
+    const readBatch = () => {
+      reader.readEntries((batch) => {
+        if (!batch.length) {
+          resolve(entries);
+          return;
+        }
+        entries.push(...batch);
+        readBatch();
+      }, reject);
+    };
+    readBatch();
+  });
+}
+
+function readEntryFile(entry) {
+  return new Promise((resolve, reject) => entry.file(resolve, reject));
+}
+
+async function collectEntryFiles(entry, path, files) {
+  if (entry.isFile) {
+    const file = await readEntryFile(entry);
+    files.push({ file, path });
+    return;
+  }
+
+  if (!entry.isDirectory) return;
+
+  const entries = await readDirectoryEntries(entry.createReader());
+
+  for (const child of entries) {
+    if (child.name.startsWith('.')) continue;
+    await collectEntryFiles(child, `${path}/${child.name}`, files);
+  }
+}
+
+async function readDroppedDirectoryEntries(entries) {
+  const files = [];
+
+  for (const entry of entries) {
+    if (!entry.isDirectory) continue;
+    await collectEntryFiles(entry, entry.name, files);
+  }
+
+  return files;
+}
+
 async function handleDrop(event) {
   if (dropBusy) return;
   dropBusy = true;
@@ -578,6 +629,17 @@ async function handleDrop(event) {
       }
     });
 
+    const droppedEntries = items
+      .map((item) => {
+        if (typeof item.webkitGetAsEntry !== 'function') return null;
+        try {
+          return item.webkitGetAsEntry();
+        } catch {
+          return null;
+        }
+      })
+      .filter(Boolean);
+
     const settled = await Promise.allSettled(handlePromises.filter(Boolean));
     const handles = settled
       .filter((result) => result.status === 'fulfilled' && result.value)
@@ -586,13 +648,29 @@ async function handleDrop(event) {
     const directory = handles.find((handle) => handle.kind === 'directory');
     if (directory) {
       const allowed = await ensureReadPermission(directory);
-      if (!allowed) {
+
+      if (allowed) {
+        const source = new DirectorySource(directory);
+        await connectSource(source, { choose: true });
+        return;
+      }
+
+      if (!droppedEntries.some((entry) => entry.isDirectory)) {
         failLoad('Folder access was denied. Drop the folder again or use “Open test folder”.');
         return;
       }
-      const source = new DirectorySource(directory);
-      await connectSource(source, { choose: true });
-      return;
+    }
+
+    if (droppedEntries.some((entry) => entry.isDirectory)) {
+      try {
+        const files = await readDroppedDirectoryEntries(droppedEntries);
+        const source = new FileListSource(files);
+        await connectSource(source, { choose: true });
+        return;
+      } catch (error) {
+        failLoad(`Could not read the dropped folder: ${error.message}`);
+        return;
+      }
     }
 
     const entries = [];
@@ -616,7 +694,7 @@ async function handleDrop(event) {
 
     if (!entries.length) {
       failLoad(
-        'That drop did not contain a file. Dropped folders need “Open test folder” in this browser.'
+        'That drop did not contain a readable file or folder. Use “Open test folder” instead.'
       );
       return;
     }
@@ -692,7 +770,9 @@ async function openDroppedFiles(entries) {
   const candidates = entries.filter(({ file }) => isJsonFile(file.name));
 
   if (!candidates.length) {
-    failLoad('That drop did not contain a “.json” graph file.');
+    failLoad(
+      'That drop did not contain a “.json” graph file. Use “Open test folder” to grant access to a whole folder.'
+    );
     return;
   }
 
@@ -794,6 +874,35 @@ async function openFromSource(source, relPath) {
   return openFileContent(file, { source, relPath });
 }
 
+async function findGraphFiles(source, files) {
+  const candidates = [];
+
+  for (const file of files.slice(0, MAX_GRAPH_DISCOVERY_FILES)) {
+    try {
+      const blob = await source.read(file.path);
+      if (blob.size > MAX_GRAPH_DISCOVERY_BYTES) continue;
+
+      const text = await blob.text();
+      const raw = JSON.parse(text.replace(/^\uFEFF/, ''));
+      parseGraph(raw, stem(file.name));
+      candidates.push(file);
+    } catch {
+      // Not a graph JSON; ignore it during discovery.
+    }
+  }
+
+  return candidates;
+}
+
+async function selectGraphFile(source, files, preselectPath) {
+  const graphFiles = await findGraphFiles(source, files);
+  const candidates = graphFiles.length ? graphFiles : files;
+
+  if (candidates.length === 1) return candidates[0];
+
+  return chooseGraphFile(source, candidates, preselectPath);
+}
+
 async function connectSource(source, options = {}) {
   const choose = Boolean(options.choose);
 
@@ -811,13 +920,11 @@ async function connectSource(source, options = {}) {
   }
 
   if (choose) {
-    let selected = null;
-
-    if (files.length === 1) {
-      selected = files[0];
-    } else {
-      selected = await chooseGraphFile(source, files, graphInfo ? graphInfo.fileName : null);
-    }
+    const selected = await selectGraphFile(
+      source,
+      files,
+      graphInfo ? graphInfo.fileName : null
+    );
 
     if (!selected) return false;
 
@@ -843,7 +950,7 @@ async function connectSource(source, options = {}) {
       }
     }
 
-    const selected = await chooseGraphFile(source, files, null);
+    const selected = await selectGraphFile(source, files, null);
     if (!selected) return false;
 
     try {

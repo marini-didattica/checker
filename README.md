@@ -41,10 +41,10 @@ HTML, CSS, JS, and `examples/` files.
 The quickest way in is to choose the test folder:
 
 1. **Open test folder…** to grant read access to the folder that contains the
-   test material. The viewer finds the graph JSON inside it and can read the
-   exercise files immediately.
+   test material. The viewer scans its subfolders and opens the graph JSON
+   automatically, or asks which graph to use if there are several.
 2. **Drop the test folder** anywhere on the drop card (or on the window once a
-   graph is open).
+   graph is open). The whole folder tree becomes available to the viewer.
 3. **Browse graph file** to pick one JSON file, or drop a JSON file. The viewer
    then asks immediately for the test folder before you open any exercise.
 

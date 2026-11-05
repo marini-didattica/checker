@@ -282,22 +282,30 @@ export class FileListSource {
     this.kind = 'file-list';
     this.files = new Map();
 
-    const list = Array.from(files || []);
-    const paths = list.map((file) =>
-      String(file.webkitRelativePath || file.name).replace(/\\/g, '/')
-    );
+    const list = Array.from(files || []).map((item) => {
+      if (item && item.file && typeof item.file === 'object') {
+        return { file: item.file, path: String(item.path || item.file.name) };
+      }
+
+      return {
+        file: item,
+        path: String(item.webkitRelativePath || item.relativePath || item.name)
+      };
+    });
+
+    const paths = list.map((item) => item.path.replace(/\\/g, '/'));
 
     const first = paths[0] || '';
     const firstSlash = first.indexOf('/');
     const root = firstSlash > 0 ? first.slice(0, firstSlash) : '';
     this.name = root || 'Selected folder';
 
-    list.forEach((file, index) => {
+    list.forEach((item, index) => {
       const path = paths[index];
       let relative = path;
       if (root && path.startsWith(`${root}/`)) relative = path.slice(root.length + 1);
       relative = relative.replace(/^\/+/, '');
-      if (relative) this.files.set(relative, file);
+      if (relative) this.files.set(relative, item.file);
     });
   }
 
