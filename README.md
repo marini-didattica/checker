@@ -118,7 +118,13 @@ The document is standard Cytoscape.js element JSON, plus a top-level
   "elements": {
     "nodes": [
       {
-        "data": { "id": "a" },
+        "data": {
+          "id": "a",
+          "confidence": 0.7,
+          "exercise-notes": {
+            "E1": "Uses a construct nobody else used."
+          }
+        },
         "style": {
           "label": "Node A",
           "width": 48,
@@ -182,6 +188,39 @@ visible extent. Edges without a confidence value are never hidden by the filter.
 
 Because confidence defines the thickness, an edge's `style.width` is ignored
 when `confidence` is present.
+
+### Node `confidence`
+
+Nodes accept the same `confidence` value in `data`. It draws a coloured contour
+whose thickness grows with the value:
+
+```text
+node border width = base border + confidence × 9
+```
+
+The colour moves from amber to red as the value grows. Nodes without a
+`confidence` keep the normal dark border.
+
+### `exercise-notes`
+
+An optional object on a node that maps exercise ids to note text:
+
+```json
+{
+  "data": {
+    "id": "mario-rossi",
+    "exercise-notes": {
+      "E1": "Uses a construct nobody else in the class used.",
+      "S3": "Output is copied from another student but the explanation is wrong."
+    }
+  }
+}
+```
+
+Clicking the node opens the inspector. For each exercise id in
+`exercise-notes`, the left pane shows the note and the right pane shows the
+student's answer file (resolved through `correzioni/<student-id>.json`). The
+exercise ids become tabs when there is more than one.
 
 ### `test-folder`
 

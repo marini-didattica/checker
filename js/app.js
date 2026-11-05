@@ -86,7 +86,6 @@ const CY_STYLE = [
     selector: 'node.highlighted',
     style: {
       'border-color': '#e4edff',
-      'border-width': 3,
       'z-index': 10
     }
   },
@@ -99,8 +98,7 @@ const CY_STYLE = [
   {
     selector: 'node:selected',
     style: {
-      'border-color': '#ffffff',
-      'border-width': 3
+      'border-color': '#ffffff'
     }
   },
   {
@@ -231,6 +229,7 @@ const els = {
   inspector: document.getElementById('inspector'),
   inspectorResizer: document.getElementById('inspector-resizer'),
   inspectorTitle: document.getElementById('inspector-title'),
+  inspectorKicker: document.getElementById('inspector-kicker'),
   inspectorMeta: document.getElementById('inspector-meta'),
   inspectorConfidence: document.getElementById('inspector-confidence'),
   inspectorClose: document.getElementById('inspector-close'),
@@ -268,7 +267,7 @@ let graphInfo = null;
 let currentSource = null;
 let sourceGeneration = 0;
 
-let currentEdgeId = null;
+let currentElementId = null;
 let currentExercise = null;
 let inspectorToken = 0;
 let inspectorHideTimer = null;
@@ -317,7 +316,7 @@ function init() {
   });
 
   document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && !els.graphDialog.open && currentEdgeId) {
+    if (event.key === 'Escape' && !els.graphDialog.open && currentElementId) {
       closeInspector();
       return;
     }
@@ -1274,7 +1273,7 @@ function bindCyEvents() {
     clearHighlight();
   });
 
-  cy.on('tap', 'edge', (event) => {
+  cy.on('tap', 'node, edge', (event) => {
     openInspector(event.target);
   });
 }
@@ -1287,13 +1286,19 @@ function applyNodeSize() {
       const width = getNodeBaseWidth(node) * settings.nodeSizeMultiplier;
       const height = getNodeBaseHeight(node) * settings.nodeSizeMultiplier;
       const reference = Math.min(width, height);
+      const confidence = getNodeConfidence(node);
+      const emphasis = confidence != null && confidence > 0 ? confidence : null;
+      const baseBorder = Math.max(1, Math.min(3, 2 * settings.nodeSizeMultiplier));
+      const borderWidth = emphasis == null ? baseBorder : baseBorder + emphasis * 9;
 
       node.style({
         width,
         height,
         'font-size': Math.max(9, Math.min(18, Math.round(reference * 0.38))),
         'text-max-width': Math.max(48, Math.min(170, Math.round(width * 2.4))),
-        'border-width': Math.max(1, Math.min(3, 2 * settings.nodeSizeMultiplier))
+        'border-width': borderWidth,
+        'border-color':
+          emphasis == null ? '#08101f' : nodeConfidenceColor(emphasis)
       });
     });
   });
@@ -1363,7 +1368,7 @@ function applyConfidenceFilter() {
 
       if (hidden) {
         edge.addClass('confidence-hidden');
-        if (edge.id() === currentEdgeId) selectedHidden = true;
+        if (edge.id() === currentElementId) selectedHidden = true;
       } else {
         edge.removeClass('confidence-hidden');
       }
@@ -1431,7 +1436,7 @@ function fitGraph(options = {}) {
   const width = els.cy.clientWidth;
   const height = els.cy.clientHeight;
   const compact = window.innerWidth <= 760;
-  const inspectorVisible = Boolean(currentEdgeId) && !compact;
+  const inspectorVisible = Boolean(currentElementId) && !compact;
   const panelVisible = !els.panel.hidden && !(compact && inspectorVisible);
   const panelRect = panelVisible ? els.panel.getBoundingClientRect() : null;
   const inspectorRect = inspectorVisible ? els.inspector.getBoundingClientRect() : null;
@@ -1624,24 +1629,24 @@ function runLayout(animate) {
   layout.run();
 }
 
-function openInspector(edge) {
-  if (!edge || edge.removed()) return;
+function openInspector(element) {
+  if (!element || element.removed()) return;
 
   hideTooltip();
   clearTimeout(inspectorHideTimer);
 
-  currentEdgeId = edge.id();
-  const exerciseIds = getExerciseIds(edge);
+  currentElementId = element.id();
+  const exerciseIds = getElementExerciseIds(element);
   currentExercise = exerciseIds ? exerciseIds[0] : null;
 
-  cy.edges().forEach((otherEdge) => {
-    if (otherEdge.id() !== edge.id()) {
-      otherEdge.style({ 'underlay-opacity': 0, 'z-index': 0 });
+  cy.elements().forEach((other) => {
+    if (other.id() !== element.id()) {
+      other.style({ 'underlay-opacity': 0, 'z-index': 0 });
     }
   });
-  cy.edges().unselect();
-  edge.select();
-  edge.style({
+  cy.elements().unselect();
+  element.select();
+  element.style({
     'underlay-color': '#78a9ff',
     'underlay-opacity': 0.2,
     'underlay-padding': 7,
@@ -1656,10 +1661,10 @@ function openInspector(edge) {
 }
 
 function closeInspector(options = {}) {
-  const edgeId = currentEdgeId;
+  const elementId = currentElementId;
   const unselect = options.unselect !== false;
 
-  currentEdgeId = null;
+  currentElementId = null;
   currentExercise = null;
   inspectorToken += 1;
   revokeObjectUrls();
@@ -1672,11 +1677,11 @@ function closeInspector(options = {}) {
     if (!els.inspector.classList.contains('is-visible')) els.inspector.hidden = true;
   }, 240);
 
-  if (unselect && edgeId && cy) {
-    const edge = cy.getElementById(edgeId);
-    if (edge && !edge.empty()) {
-      edge.unselect();
-      edge.style({ 'underlay-opacity': 0, 'z-index': 0 });
+  if (unselect && elementId && cy) {
+    const element = cy.getElementById(elementId);
+    if (element && !element.empty()) {
+      element.unselect();
+      element.style({ 'underlay-opacity': 0, 'z-index': 0 });
     }
   }
 
@@ -1684,15 +1689,15 @@ function closeInspector(options = {}) {
 }
 
 function refreshInspector() {
-  if (!currentEdgeId || els.inspector.hidden) return;
+  if (!currentElementId || els.inspector.hidden) return;
   renderInspector();
 }
 
 async function renderInspector() {
   if (!cy) return;
 
-  const edge = cy.getElementById(currentEdgeId);
-  if (!edge || edge.empty()) {
+  const element = cy.getElementById(currentElementId);
+  if (!element || element.empty()) {
     closeInspector();
     return;
   }
@@ -1700,27 +1705,39 @@ async function renderInspector() {
   const token = ++inspectorToken;
   revokeObjectUrls();
 
-  const data = edge.data();
+  const isNode = element.isNode();
+  const data = element.data();
   const source = String(data.source ?? '');
   const target = String(data.target ?? '');
-  const confidence = getEdgeConfidence(edge);
-  const hasConfidence = confidence != null;
-  const exerciseIds = getExerciseIds(edge);
+  const confidence = isNode ? getNodeConfidence(element) : getEdgeConfidence(element);
+  const exerciseIds = getElementExerciseIds(element);
 
   if (exerciseIds && !exerciseIds.includes(currentExercise)) {
     currentExercise = exerciseIds[0];
   }
 
-  const label = getElementLabel(edge);
-  els.inspectorTitle.textContent = label || `${source} → ${target}`;
-  els.inspectorTitle.title = label || `${source} → ${target}`;
+  const label = getElementLabel(element);
+  const fallbackTitle = isNode ? String(data.id ?? '') : `${source} → ${target}`;
+  if (els.inspectorKicker) {
+    els.inspectorKicker.textContent = isNode ? 'Selected node' : 'Selected edge';
+  }
+  els.inspectorTitle.textContent = label || fallbackTitle;
+  els.inspectorTitle.title = label || fallbackTitle;
 
   const exerciseCount = exerciseIds ? exerciseIds.length : 0;
-  const metaParts = [`${source} → ${target}`, `id ${data.id}`];
-  if (exerciseCount > 0) metaParts.push(formatCount(exerciseCount, 'exercise set'));
+  const metaParts = isNode
+    ? [`node ${data.id}`]
+    : [`${source} → ${target}`, `id ${data.id}`];
+  if (exerciseCount > 0) {
+    metaParts.push(
+      isNode
+        ? formatCount(exerciseCount, 'exercise note')
+        : formatCount(exerciseCount, 'exercise set')
+    );
+  }
   els.inspectorMeta.textContent = metaParts.join(' · ');
 
-  renderConfidenceBadge(hasConfidence ? confidence : null);
+  renderConfidenceBadge(confidence, isNode ? 'anomaly' : 'confidence');
 
   renderExerciseTabs(exerciseIds);
   renderInspectorNotice();
@@ -1730,13 +1747,28 @@ async function renderInspector() {
   els.inspectorEmpty.hidden = true;
 
   if (!exerciseIds) {
-    showEmptyState({
-      icon: 'file',
-      title: 'No exercises on this edge',
-      message:
-        'Add an “exercises” array of exercise ids to the edge data to open the students’ answer files here.',
-      sample: '"exercises": ["E1", "E2"]'
-    });
+    showEmptyState(
+      isNode
+        ? {
+            icon: 'file',
+            title: 'No exercise notes on this node',
+            message:
+              'Add an “exercise-notes” object of exercise ids and note text to the node data to open the checker notes and the student answer here.',
+            sample: '"exercise-notes": { "E1": "Uses an unusual approach…" }'
+          }
+        : {
+            icon: 'file',
+            title: 'No exercises on this edge',
+            message:
+              'Add an “exercises” array of exercise ids to the edge data to open the students’ answer files here.',
+            sample: '"exercises": ["E1", "E2"]'
+          }
+    );
+    return;
+  }
+
+  if (isNode) {
+    await renderNodeInspector(element, exerciseIds, token);
     return;
   }
 
@@ -1759,7 +1791,7 @@ async function renderInspector() {
   let filesByExercise;
 
   try {
-    filesByExercise = await resolveExerciseFiles(edge, exerciseIds);
+    filesByExercise = await resolveExerciseFiles(element, exerciseIds);
   } catch (error) {
     if (token !== inspectorToken) return;
     showEmptyState({
@@ -1778,22 +1810,197 @@ async function renderInspector() {
   renderPanes(entry, token);
 }
 
-function renderConfidenceBadge(confidence) {
+async function renderNodeInspector(node, exerciseIds, token) {
+  const notes = getNodeExerciseNotes(node) || {};
+  const noteText = notes[currentExercise] || '';
+
+  els.inspectorEmpty.hidden = true;
+  els.inspectorSplit.hidden = false;
+  els.inspectorSplit.replaceChildren();
+  els.inspectorSplit.append(createNotePane(currentExercise, noteText).article);
+
+  if (!graphInfo || !graphInfo.source) {
+    els.inspectorSplit.append(
+      createMessagePane({
+        kind: 'lock',
+        title: 'Student answer',
+        message:
+          'Grant read access to the folder that contains the test material to open the student answer next to the note.',
+        stateTitle: 'Folder access needed',
+        actions: [
+          {
+            label: 'Grant folder access',
+            primary: true,
+            onClick: () => requestGraphFolder()
+          }
+        ]
+      }).article
+    );
+    els.inspectorSplit.dataset.count = '2';
+    return;
+  }
+
+  let filesByExercise;
+
+  try {
+    filesByExercise = await resolveStudentAnswerFiles([node.id()], [currentExercise]);
+  } catch (error) {
+    if (token !== inspectorToken) return;
+    els.inspectorSplit.append(
+      createMessagePane({
+        kind: 'warning',
+        title: 'Student answer',
+        message: error && error.message ? error.message : String(error),
+        stateTitle: 'Could not resolve the answer file',
+        actions: [{ label: 'Retry', onClick: () => renderInspector() }]
+      }).article
+    );
+    els.inspectorSplit.dataset.count = '2';
+    return;
+  }
+
+  if (token !== inspectorToken) return;
+
+  const files = filesByExercise[currentExercise] || [];
+
+  if (files.length === 0) {
+    els.inspectorSplit.append(
+      createMessagePane({
+        kind: 'file',
+        title: 'Student answer',
+        message: `No answer file was found for exercise “${currentExercise}” in the student's correction descriptor.`,
+        stateTitle: 'No answer file'
+      }).article
+    );
+  } else {
+    for (const relativePath of files) {
+      const pane = createFilePane(relativePath);
+      els.inspectorSplit.append(pane.article);
+
+      let resolvedPath;
+      try {
+        resolvedPath = resolveExercisePath(relativePath);
+      } catch (error) {
+        showPaneError(pane, error, relativePath);
+        continue;
+      }
+
+      pane.resolvedPath = resolvedPath;
+      loadPane(pane, relativePath, resolvedPath, token);
+    }
+  }
+
+  els.inspectorSplit.dataset.count = String(1 + Math.max(1, files.length));
+}
+
+function createNotePane(exerciseId, noteText) {
+  const article = document.createElement('article');
+  article.className = 'file-pane note-pane';
+
+  const head = document.createElement('header');
+  head.className = 'file-pane-head';
+
+  const kind = document.createElement('span');
+  kind.className = 'file-kind';
+  kind.textContent = 'nota';
+
+  const titleWrap = document.createElement('div');
+  titleWrap.className = 'file-title-wrap';
+
+  const name = document.createElement('h3');
+  name.className = 'file-name';
+  name.textContent = `Anomaly ${exerciseId}`;
+
+  const path = document.createElement('p');
+  path.className = 'file-path';
+  path.textContent = 'exercise-notes';
+
+  const meta = document.createElement('p');
+  meta.className = 'file-meta';
+  meta.textContent = 'checker note';
+
+  titleWrap.append(name, path, meta);
+  head.append(kind, titleWrap);
+
+  const body = document.createElement('div');
+  body.className = 'file-pane-body';
+
+  const scroll = document.createElement('div');
+  scroll.className = 'code-scroll';
+
+  const pre = document.createElement('pre');
+  pre.className = 'code note-code';
+  pre.tabIndex = 0;
+
+  const code = document.createElement('code');
+  code.textContent = noteText;
+
+  pre.append(code);
+  scroll.append(pre);
+  body.append(scroll);
+  article.append(head, body);
+
+  return { article, body };
+}
+
+function createMessagePane({ kind, title, message, stateTitle, actions = [] }) {
+  const article = document.createElement('article');
+  article.className = 'file-pane';
+
+  const head = document.createElement('header');
+  head.className = 'file-pane-head';
+
+  const kindEl = document.createElement('span');
+  kindEl.className = 'file-kind';
+  kindEl.textContent = kind;
+
+  const titleWrap = document.createElement('div');
+  titleWrap.className = 'file-title-wrap';
+
+  const name = document.createElement('h3');
+  name.className = 'file-name';
+  name.textContent = title;
+
+  titleWrap.append(name);
+  head.append(kindEl, titleWrap);
+
+  const body = document.createElement('div');
+  body.className = 'file-pane-body';
+
+  article.append(head, body);
+
+  const pane = { article, body };
+  renderPaneState(pane, {
+    icon: kind === 'lock' ? 'lock' : 'warning',
+    title: stateTitle,
+    message,
+    actions
+  });
+
+  return pane;
+}
+
+function renderConfidenceBadge(confidence, label = 'confidence') {
   const badge = els.inspectorConfidence;
+  const isAnomaly = label === 'anomaly';
   badge.replaceChildren();
 
   if (confidence == null) {
     badge.classList.add('is-unknown');
-    badge.title = 'This edge has no confidence value';
+    badge.title = isAnomaly
+      ? 'This node has no anomaly score'
+      : 'This edge has no confidence value';
     const text = document.createElement('span');
     text.className = 'confidence-value';
-    text.textContent = 'No confidence';
+    text.textContent = isAnomaly ? 'No anomaly' : 'No confidence';
     badge.append(text);
     return;
   }
 
   badge.classList.remove('is-unknown');
-  badge.title = `Confidence ${confidence} (${Math.round(confidence * 100)}%)`;
+  badge.title = `${isAnomaly ? 'Anomaly' : 'Confidence'} ${confidence} (${Math.round(
+    confidence * 100
+  )}%)`;
 
   const track = document.createElement('span');
   track.className = 'confidence-track';
@@ -2368,6 +2575,39 @@ function getExerciseIds(edge) {
   return names.length ? names : null;
 }
 
+function getNodeConfidence(node) {
+  const confidence = node.scratch('confidence');
+  return typeof confidence === 'number' && Number.isFinite(confidence)
+    ? confidence
+    : null;
+}
+
+function nodeConfidenceColor(confidence) {
+  const amount = Math.min(1, Math.max(0, confidence));
+  const from = [245, 158, 11];
+  const to = [239, 68, 68];
+  const channel = (index) => Math.round(from[index] + (to[index] - from[index]) * amount);
+  return `rgb(${channel(0)}, ${channel(1)}, ${channel(2)})`;
+}
+
+function getNodeExerciseNotes(node) {
+  const notes = node.scratch('exerciseNotes');
+  if (!isStyleObject(notes)) return null;
+
+  const entries = Object.entries(notes).filter(
+    ([exerciseId, note]) =>
+      exerciseId.trim() !== '' && typeof note === 'string' && note.trim() !== ''
+  );
+
+  return entries.length ? Object.fromEntries(entries) : null;
+}
+
+function getElementExerciseIds(element) {
+  if (element.isEdge()) return getExerciseIds(element);
+  const notes = getNodeExerciseNotes(element);
+  return notes ? Object.keys(notes) : null;
+}
+
 async function resolveExerciseFiles(edge, exerciseIds) {
   const exercises = edge.data('exercises');
 
@@ -2380,9 +2620,6 @@ async function resolveExerciseFiles(edge, exerciseIds) {
     );
   }
 
-  const filesByExercise = Object.fromEntries(
-    exerciseIds.map((exerciseId) => [exerciseId, []])
-  );
   const studentIds = [
     ...new Set(
       [edge.data('source'), edge.data('target')]
@@ -2390,6 +2627,14 @@ async function resolveExerciseFiles(edge, exerciseIds) {
         .map((value) => String(value).trim())
     )
   ];
+
+  return resolveStudentAnswerFiles(studentIds, exerciseIds);
+}
+
+async function resolveStudentAnswerFiles(studentIds, exerciseIds) {
+  const filesByExercise = Object.fromEntries(
+    exerciseIds.map((exerciseId) => [exerciseId, []])
+  );
 
   for (const studentId of studentIds) {
     const correction = await loadCorrection(studentId);
@@ -2535,6 +2780,23 @@ function showTooltip(element, event) {
     }
   } else {
     meta.push(`Node · ${data.id}`);
+    const confidence = getNodeConfidence(element);
+    const notes = getNodeExerciseNotes(element);
+
+    if (confidence != null) {
+      meta.push(`Anomaly ${Math.round(confidence * 100)}%`);
+    }
+
+    if (notes) {
+      const ids = Object.keys(notes);
+      meta.push(formatCount(ids.length, 'exercise note'));
+      extra.push(
+        `Anomalies: ${ids.slice(0, 4).join(', ')}${ids.length > 4 ? '…' : ''}`
+      );
+    } else {
+      meta.push('No exercise notes');
+    }
+
     if (data.group != null) meta.push(String(data.group));
   }
 

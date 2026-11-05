@@ -11,6 +11,10 @@ const DEFAULT_EDGE_WIDTH = 2;
  * Graph-specific extensions:
  *   test-folder: path (relative to the graph file) containing the test material
  *
+ * Node data extensions:
+ *   confidence: number in [0, 1], drawn as a node contour
+ *   exercise-notes: { [exerciseId: string]: string } notes shown in the inspector
+ *
  * Edge data extensions:
  *   confidence: number in [0, 1]
  *   exercises:  one of
@@ -59,6 +63,8 @@ export function parseGraph(raw, fallbackName = 'Untitled graph') {
   const warnings = [];
   const testFolder = normalizeTestFolder(raw['test-folder'], warnings);
   const nodeIds = new Set();
+  let nodeConfidenceCount = 0;
+  let nodeNoteCount = 0;
 
   const nodes = nodesRaw.map((item, index) => {
     const label = `Node ${index + 1}`;
@@ -82,6 +88,22 @@ export function parseGraph(raw, fallbackName = 'Untitled graph') {
       data.label = String(data.label);
     }
 
+    const confidence = normalizeConfidence(data.confidence, id, warnings, 'Node');
+    if (confidence != null) {
+      data.confidence = confidence;
+      nodeConfidenceCount += 1;
+    } else {
+      delete data.confidence;
+    }
+
+    const exerciseNotes = normalizeExerciseNotes(data['exercise-notes'], id, warnings);
+    if (exerciseNotes) {
+      data['exercise-notes'] = exerciseNotes;
+      nodeNoteCount += 1;
+    } else {
+      delete data['exercise-notes'];
+    }
+
     const style = normalizeStyle(element.rawStyle, label, warnings);
     const styleWidth = takeNumericStyle(style, 'width');
     const styleHeight = takeNumericStyle(style, 'height');
@@ -91,6 +113,8 @@ export function parseGraph(raw, fallbackName = 'Untitled graph') {
     const scratch = isPlainObject(item.scratch) ? { ...item.scratch } : {};
     scratch.baseWidth = baseWidth;
     scratch.baseHeight = baseHeight;
+    scratch.confidence = confidence;
+    scratch.exerciseNotes = exerciseNotes;
     scratch.styleOverride = style;
 
     const node = { data, scratch };
@@ -183,6 +207,8 @@ export function parseGraph(raw, fallbackName = 'Untitled graph') {
       edges: edges.length,
       withConfidence: confidenceCount,
       withExercises: exerciseCount,
+      withNodeConfidence: nodeConfidenceCount,
+      withNodeNotes: nodeNoteCount,
       warnings
     },
     warnings
@@ -250,7 +276,7 @@ function normalizeStyle(rawStyle, label, warnings) {
   return { ...rawStyle };
 }
 
-function normalizeConfidence(value, edgeId, warnings) {
+function normalizeConfidence(value, elementId, warnings, kind = 'Edge') {
   if (value == null || value === '') return null;
 
   const numeric =
@@ -261,19 +287,54 @@ function normalizeConfidence(value, edgeId, warnings) {
         : Number.NaN;
 
   if (!Number.isFinite(numeric)) {
-    warnings.push(`Edge “${edgeId}” has a non-numeric confidence; it was ignored.`);
+    warnings.push(`${kind} “${elementId}” has a non-numeric confidence; it was ignored.`);
     return null;
   }
 
   if (numeric < 0 || numeric > 1) {
     const clamped = Math.min(1, Math.max(0, numeric));
     warnings.push(
-      `Edge “${edgeId}” has confidence ${numeric}; values must be between 0 and 1. Clamped to ${clamped}.`
+      `${kind} “${elementId}” has confidence ${numeric}; values must be between 0 and 1. Clamped to ${clamped}.`
     );
     return clamped;
   }
 
   return numeric;
+}
+
+function normalizeExerciseNotes(value, nodeId, warnings) {
+  if (value == null) return null;
+
+  if (!isPlainObject(value)) {
+    warnings.push(`Node “${nodeId}” has an invalid “exercise-notes” value; it was ignored.`);
+    return null;
+  }
+
+  const normalized = {};
+  let kept = 0;
+
+  for (const [name, note] of Object.entries(value)) {
+    const exerciseId = String(name).trim();
+
+    if (!exerciseId) {
+      warnings.push(
+        `Node “${nodeId}” has an exercise note with an empty exercise id; it was skipped.`
+      );
+      continue;
+    }
+
+    if (typeof note !== 'string' || note.trim() === '') {
+      warnings.push(
+        `Exercise note “${exerciseId}” on node “${nodeId}” must be a non-empty string; it was skipped.`
+      );
+      continue;
+    }
+
+    normalized[exerciseId] = note.trim();
+    kept += 1;
+  }
+
+  return kept > 0 ? normalized : null;
 }
 
 function normalizeExercises(value, edgeId, warnings) {

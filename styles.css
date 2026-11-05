@@ -1189,6 +1189,23 @@ input[type="range"]::-moz-range-thumb {
   font: inherit;
 }
 
+.note-pane {
+  border-color: rgba(246, 178, 107, 0.32);
+}
+
+.note-pane .file-kind {
+  border-color: rgba(246, 178, 107, 0.32);
+  background: rgba(246, 178, 107, 0.09);
+  color: #f7d6ad;
+}
+
+.note-code {
+  width: auto;
+  min-width: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .file-banner {
   flex: none;
   padding: 6px 12px;

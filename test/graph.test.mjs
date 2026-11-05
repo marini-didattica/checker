@@ -164,6 +164,43 @@ test('clamps confidence and reports warnings', () => {
   assert.equal(parsed.warnings.length, 2);
 });
 
+test('parses node confidence and exercise notes', () => {
+  const parsed = parseGraph({
+    elements: {
+      nodes: [
+        {
+          data: {
+            id: 'a',
+            confidence: 1.4,
+            'exercise-notes': {
+              E1: '  Uses an unusual construct.  ',
+              E2: 42,
+              '': 'orphan',
+              E3: ''
+            }
+          }
+        }
+      ],
+      edges: []
+    }
+  });
+
+  const node = parsed.elements[0];
+  assert.equal(node.scratch.confidence, 1);
+  assert.equal(node.data.confidence, 1);
+  assert.deepEqual(node.scratch.exerciseNotes, {
+    E1: 'Uses an unusual construct.'
+  });
+  assert.deepEqual(node.data['exercise-notes'], {
+    E1: 'Uses an unusual construct.'
+  });
+  assert.equal(parsed.stats.withNodeConfidence, 1);
+  assert.equal(parsed.stats.withNodeNotes, 1);
+  assert.match(parsed.warnings.join('\n'), /Node “a” has confidence/);
+  assert.match(parsed.warnings.join('\n'), /must be a non-empty string/);
+  assert.match(parsed.warnings.join('\n'), /empty exercise id/);
+});
+
 test('drops invalid exercise entries and keeps valid ones', () => {
   const parsed = parseGraph({
     elements: {
