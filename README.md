@@ -22,6 +22,20 @@ The page must be served over HTTP (or HTTPS). Opening `index.html` directly from
 the filesystem will not work because the app uses ES modules and the File System
 Access API.
 
+## Deploy
+
+The app is a static bundle, so it can be published directly to GitHub Pages.
+The workflow in `.github/workflows/deploy-pages.yml` runs the tests and deploys
+the repository root on every push to `main` (or manually via
+**Actions → Deploy to GitHub Pages → Run workflow**).
+
+Enable it once in **Settings → Pages → Build and deployment → Source →
+GitHub Actions**. The site is then available at
+<https://marini-didattica.github.io/checker/>.
+
+`server.js` is only needed for local development; GitHub Pages serves the same
+HTML, CSS, JS, and `examples/` files.
+
 ## Open a graph
 
 There are three ways in:
