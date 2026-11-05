@@ -83,6 +83,12 @@ const CY_STYLE = [
     }
   },
   {
+    selector: 'node.has-anomaly',
+    style: {
+      'border-color': 'data(anomalyColor)'
+    }
+  },
+  {
     selector: 'node.highlighted',
     style: {
       'border-color': '#e4edff',
@@ -1177,8 +1183,16 @@ function renderGraph(parsed) {
   const elements = parsed.elements.map((element) => {
     if (element.data.source != null) {
       if (!isUsableColor(element.data.color)) element.data.color = DEFAULT_EDGE_COLOR;
-    } else if (!isUsableColor(element.data.color)) {
-      element.data.color = pickColor(element.data);
+    } else {
+      if (!isUsableColor(element.data.color)) {
+        element.data.color = pickColor(element.data);
+      }
+
+      const confidence = Number(element.data.confidence);
+      if (Number.isFinite(confidence) && confidence > 0) {
+        element.data.anomalyColor = nodeConfidenceColor(confidence);
+        element.classes = [element.classes, 'has-anomaly'].filter(Boolean).join(' ');
+      }
     }
     return element;
   });
@@ -1296,9 +1310,7 @@ function applyNodeSize() {
         height,
         'font-size': Math.max(9, Math.min(18, Math.round(reference * 0.38))),
         'text-max-width': Math.max(48, Math.min(170, Math.round(width * 2.4))),
-        'border-width': borderWidth,
-        'border-color':
-          emphasis == null ? '#08101f' : nodeConfidenceColor(emphasis)
+        'border-width': borderWidth
       });
     });
   });
