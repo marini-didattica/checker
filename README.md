@@ -247,13 +247,16 @@ the two answer files from the correction descriptors of the edge's source and
 target students:
 
 ```text
+<test folder>/manifest.json          → answer-folder
 <test folder>/correzioni/<student-id>.json
-  → answer-folder + exercises.<exercise-id>.answer-file
+  → exercises.<exercise-id>.answer-file
 ```
 
-The correction's `answer-folder` is resolved relative to the correction file,
-then `answer-file` is resolved inside it. Both endpoints' files are shown side
-by side; if a student has no answer for an exercise id, that pane is omitted.
+The manifest's `answer-folder` is resolved relative to the test folder, then the
+student slug and `answer-file` are appended. Legacy correction descriptors that
+still carry their own `answer-folder` are also supported. Both endpoints' files
+are shown side by side; if a student has no answer for an exercise id, that pane
+is omitted. Corrections with `"absent": true` are ignored.
 
 When an edge has no explicit `label`, its label defaults to the exercise ids,
 joined with spaces (for example `"E1 E2 S5"`). An explicit `data.label` (or a

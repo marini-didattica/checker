@@ -32,6 +32,7 @@ const MAX_GRAPH_DISCOVERY_BYTES = 8 * 1024 * 1024;
 const MAX_PREVIEW_BYTES = 1024 * 1024;
 const MAX_HIGHLIGHT_CHARS = 300000;
 const CORRECTIONS_DIRECTORY = 'correzioni';
+const MANIFEST_FILE = 'manifest.json';
 
 const DEFAULT_NODE_SIZE = 32;
 const DEFAULT_EDGE_WIDTH = 2;
@@ -280,6 +281,7 @@ let inspectorHideTimer = null;
 let objectUrls = new Set();
 let fileCache = new Map();
 let correctionCache = new Map();
+let manifestCache = new Map();
 
 let dragDepth = 0;
 let dropBusy = false;
@@ -996,6 +998,7 @@ function setSourceState(source) {
   sourceGeneration += 1;
   fileCache.clear();
   correctionCache.clear();
+  manifestCache.clear();
   revokeObjectUrls();
 }
 
@@ -2647,25 +2650,39 @@ async function resolveStudentAnswerFiles(studentIds, exerciseIds) {
   const filesByExercise = Object.fromEntries(
     exerciseIds.map((exerciseId) => [exerciseId, []])
   );
+  let manifest = null;
 
   for (const studentId of studentIds) {
     const correction = await loadCorrection(studentId);
-    if (!correction || !isStyleObject(correction.exercises)) continue;
+    if (!correction || correction.absent === true) continue;
+    if (!isStyleObject(correction.exercises)) continue;
 
-    const answerFolder =
+    const correctionAnswerFolder =
       typeof correction['answer-folder'] === 'string'
         ? correction['answer-folder'].trim()
         : '';
     let baseFolder;
 
     try {
-      baseFolder = answerFolder
-        ? resolveDirectoryFrom(CORRECTIONS_DIRECTORY, answerFolder)
-        : CORRECTIONS_DIRECTORY;
+      if (correctionAnswerFolder) {
+        // Legacy correction descriptor: answer-folder is relative to correzioni/.
+        baseFolder = resolveDirectoryFrom(
+          CORRECTIONS_DIRECTORY,
+          correctionAnswerFolder
+        );
+      } else {
+        if (!manifest) manifest = await loadExamManifest();
+        const manifestAnswerFolder =
+          typeof manifest['answer-folder'] === 'string'
+            ? manifest['answer-folder'].trim()
+            : '';
+        // Manifest paths are relative to the test folder root.
+        baseFolder = resolveDirectoryFrom('', manifestAnswerFolder || 'risposte');
+      }
     } catch (error) {
       throw new SourceError(
         'io',
-        `Invalid answer folder in “${studentId}.json”: ${error.message}`
+        `Invalid answer folder for “${studentId}.json”: ${error.message}`
       );
     }
 
@@ -2729,6 +2746,43 @@ async function loadCorrection(studentId) {
   }
 
   correctionCache.set(key, parsed);
+  return parsed;
+}
+
+async function loadExamManifest() {
+  const key = String(sourceGeneration);
+  if (manifestCache.has(key)) return manifestCache.get(key);
+
+  const resolvedPath = resolveExercisePath(MANIFEST_FILE);
+  const file = await readSourceFile(resolvedPath);
+
+  let text;
+  try {
+    text = await file.text();
+  } catch {
+    throw new SourceError('io', `Could not read “${MANIFEST_FILE}”.`, {
+      path: MANIFEST_FILE
+    });
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(text.replace(/^\uFEFF/, ''));
+  } catch (error) {
+    throw new SourceError(
+      'io',
+      `Could not parse “${MANIFEST_FILE}”: ${error.message}`,
+      { path: MANIFEST_FILE }
+    );
+  }
+
+  if (!isStyleObject(parsed)) {
+    throw new SourceError('io', `“${MANIFEST_FILE}” must contain a JSON object.`, {
+      path: MANIFEST_FILE
+    });
+  }
+
+  manifestCache.set(key, parsed);
   return parsed;
 }
 
