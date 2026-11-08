@@ -212,10 +212,15 @@ const els = {
   graphName: document.getElementById('graph-name'),
   graphStats: document.getElementById('graph-stats'),
   openFile: document.getElementById('open-file'),
-  folderRow: document.getElementById('folder-row'),
-  folderTitle: document.getElementById('folder-title'),
-  folderDetail: document.getElementById('folder-detail'),
-  folderButton: document.getElementById('folder-button'),
+  folderRows: document.getElementById('folder-rows'),
+  testFolderRow: document.getElementById('test-folder-row'),
+  testFolderTitle: document.getElementById('test-folder-title'),
+  testFolderDetail: document.getElementById('test-folder-detail'),
+  testFolderButton: document.getElementById('test-folder-button'),
+  correctionFolderRow: document.getElementById('correction-folder-row'),
+  correctionFolderTitle: document.getElementById('correction-folder-title'),
+  correctionFolderDetail: document.getElementById('correction-folder-detail'),
+  correctionFolderButton: document.getElementById('correction-folder-button'),
   nodeSize: document.getElementById('node-size'),
   nodeSizeValue: document.getElementById('node-size-value'),
   edgeSize: document.getElementById('edge-size'),
@@ -253,6 +258,7 @@ const els = {
   graphList: document.getElementById('graph-list'),
   graphDialogEmpty: document.getElementById('graph-dialog-empty'),
   folderDialog: document.getElementById('folder-dialog'),
+  folderDialogTitle: document.getElementById('folder-dialog-title'),
   folderDialogSubtitle: document.getElementById('folder-dialog-subtitle'),
   folderDialogCopy: document.getElementById('folder-dialog-copy'),
   folderDialogChoose: document.getElementById('folder-dialog-choose')
@@ -272,7 +278,8 @@ const settings = {
 
 let cy = null;
 let graphInfo = null;
-let currentSource = null;
+let correctionSource = null;
+let testSource = null;
 let sourceGeneration = 0;
 
 let currentElementId = null;
@@ -295,6 +302,8 @@ let toastTimer = null;
 let toastHideTimer = null;
 
 let pendingFolderIntent = null;
+let pendingFolderRole = 'both';
+let folderDialogRole = 'both';
 let pickingSource = false;
 
 init();
@@ -370,7 +379,8 @@ function bindUi() {
   });
 
   els.openFile.addEventListener('click', () => els.fileInput.click());
-  els.folderButton.addEventListener('click', () => requestGraphFolder());
+  els.testFolderButton.addEventListener('click', () => requestFolder('test'));
+  els.correctionFolderButton.addEventListener('click', () => requestFolder('correction'));
 
   els.fileInput.addEventListener('change', () => {
     const [file] = els.fileInput.files || [];
@@ -382,12 +392,14 @@ function bindUi() {
     const files = Array.from(els.folderInput.files || []);
     els.folderInput.value = '';
     const intent = pendingFolderIntent || 'open';
+    const role = pendingFolderRole || 'both';
     pendingFolderIntent = null;
+    pendingFolderRole = null;
 
     if (!files.length) return;
 
     const source = new FileListSource(files);
-    connectSource(source, { choose: intent === 'open' }).catch((error) => {
+    connectSource(source, { choose: intent === 'open', role }).catch((error) => {
       failLoad(error.message);
     });
   });
@@ -503,8 +515,9 @@ function bindUi() {
   });
 
   els.folderDialogChoose.addEventListener('click', () => {
+    const role = folderDialogRole || 'both';
     if (els.folderDialog.open) els.folderDialog.close('choose');
-    requestGraphFolder();
+    requestFolder(role);
   });
 
   els.dialogFilter.addEventListener('input', applyDialogFilter);
@@ -790,12 +803,12 @@ async function openDroppedFiles(entries) {
     let source = null;
     let relPath = null;
 
-    if (currentSource) {
+    if (correctionSource) {
       try {
-        const sourceFiles = await currentSource.listGraphFiles();
+        const sourceFiles = await correctionSource.listGraphFiles();
         const matches = findGraphCandidates(sourceFiles, file.name);
         if (matches.length) {
-          source = currentSource;
+          source = correctionSource;
           relPath = matches[0].path;
         }
       } catch {
@@ -849,12 +862,13 @@ async function openFileContent(file, options = {}) {
   const relPath = options.relPath || null;
   const fileHandle = options.fileHandle || null;
 
-  setSourceState(source);
+  setSources({ correction: source });
   graphInfo = {
     name: parsed.name,
     fileName: file.name,
     relPath,
-    source,
+    correctionSource: source,
+    testSource,
     fileHandle,
     testFolder: parsed.testFolder,
     stats: parsed.stats,
@@ -913,16 +927,34 @@ async function selectGraphFile(source, files, preselectPath) {
 
 async function connectSource(source, options = {}) {
   const choose = Boolean(options.choose);
+  const role = options.role || 'both';
+
+  if (role === 'test') {
+    setSources({ test: source });
+    updateFolderRows();
+    refreshInspector();
+    showToast(`Test folder set to “${source.name}”.`, 'info');
+    return true;
+  }
+
+  // The first correction folder also becomes the default test folder.
+  if (role === 'both' || !testSource) {
+    setSources({ correction: source, test: source });
+  } else {
+    setSources({ correction: source });
+  }
 
   let files;
   try {
     files = await source.listGraphFiles();
   } catch (error) {
+    updateFolderRows();
     failLoad(`Could not read “${source.name}”: ${error.message}`);
     return false;
   }
 
   if (!files.length) {
+    updateFolderRows();
     failLoad(`No “.json” files were found in “${source.name}”.`);
     return false;
   }
@@ -970,14 +1002,13 @@ async function connectSource(source, options = {}) {
     }
   }
 
-  setSourceState(source);
-
   const matches = findGraphCandidates(files, graphInfo.fileName);
-  graphInfo.source = source;
+  graphInfo.correctionSource = source;
+  graphInfo.testSource = testSource;
   graphInfo.relPath = matches.length ? matches[0].path : null;
   graphInfo.sourceMissingGraph = matches.length === 0;
 
-  updateFolderRow();
+  updateFolderRows();
   refreshInspector();
 
   if (graphInfo.sourceMissingGraph) {
@@ -986,16 +1017,32 @@ async function connectSource(source, options = {}) {
       'warning'
     );
   } else {
-    showToast(`Connected to “${source.name}”.`, 'info');
+    showToast(`Correction folder set to “${source.name}”.`, 'info');
   }
 
   return true;
 }
 
-function setSourceState(source) {
-  if (currentSource === source) return;
+function setSources(next = {}) {
+  let changed = false;
 
-  currentSource = source;
+  if ('correction' in next && next.correction !== correctionSource) {
+    correctionSource = next.correction;
+    changed = true;
+  }
+
+  if ('test' in next && next.test !== testSource) {
+    testSource = next.test;
+    changed = true;
+  }
+
+  if (graphInfo) {
+    graphInfo.correctionSource = correctionSource;
+    graphInfo.testSource = testSource;
+  }
+
+  if (!changed) return;
+
   sourceGeneration += 1;
   fileCache.clear();
   correctionCache.clear();
@@ -1003,35 +1050,58 @@ function setSourceState(source) {
   revokeObjectUrls();
 }
 
-function promptForFolderAccess() {
-  if (!graphInfo || graphInfo.source) return;
-  if (!graphInfo.stats.withExercises) return;
-  if (els.folderDialog.open) return;
+function openFolderDialog(role) {
+  folderDialogRole = role;
 
-  els.folderDialogSubtitle.textContent = graphInfo.fileName;
-  els.folderDialogCopy.textContent = graphInfo.testFolder
-    ? `This graph reads its exercise files from its test folder (“${graphInfo.testFolder}”). Choose the folder that contains the whole test material, then you can open the exercises directly.`
-    : 'Exercise files are read from the folder that contains this graph. Choose that folder to open them directly.';
+  const isTest = role === 'test';
+  const isCorrection = role === 'correction';
+
+  els.folderDialogTitle.textContent = isTest
+    ? 'Choose the test folder'
+    : 'Choose the correction folder';
+  els.folderDialogSubtitle.textContent = graphInfo ? graphInfo.fileName : '';
+  els.folderDialogCopy.textContent = isTest
+    ? 'Choose the folder that contains the test descriptor and the solutions. It is read-only and can be changed later.'
+    : isCorrection
+      ? 'Choose the folder that contains the graph JSON, the correction descriptors and the student answers. It is read-only and can be changed later.'
+      : 'Choose the folder that contains the graph JSON, corrections and student answers. It will also be used as the test folder until you change it.';
 
   els.folderDialog.showModal();
 }
 
+function promptForFolderAccess() {
+  if (!graphInfo || graphInfo.correctionSource) return;
+  if (!graphInfo.stats.withExercises) return;
+  if (els.folderDialog.open) return;
+
+  openFolderDialog('both');
+}
+
+function requestFolder(role) {
+  const startIn = role === 'test'
+    ? testSource && testSource.handle
+    : correctionSource && correctionSource.handle;
+
+  return requestSource('grant', { role, startIn });
+}
+
 function requestGraphFolder() {
-  return requestSource('grant', {
-    startIn: graphInfo && graphInfo.fileHandle ? graphInfo.fileHandle : null
-  });
+  return requestFolder('correction');
 }
 
 async function requestSource(intent, options = {}) {
   if (pickingSource) return;
+
+  const role = options.role || 'both';
   const startIn = options.startIn || null;
   pickingSource = true;
-  els.folderButton.disabled = true;
+  els.testFolderButton.disabled = true;
+  els.correctionFolderButton.disabled = true;
 
   try {
     if (typeof window.showDirectoryPicker === 'function' && window.isSecureContext) {
       const pickerOptions = {
-        id: 'cheating-graph-folder',
+        id: `cheating-${role}-folder`,
         mode: 'read'
       };
 
@@ -1054,15 +1124,17 @@ async function requestSource(intent, options = {}) {
       }
 
       const source = new DirectorySource(handle);
-      await connectSource(source, { choose: intent === 'open' });
+      await connectSource(source, { choose: intent === 'open', role });
       return;
     }
 
     pendingFolderIntent = intent;
+    pendingFolderRole = role;
     els.folderInput.click();
   } finally {
     pickingSource = false;
-    els.folderButton.disabled = false;
+    els.testFolderButton.disabled = false;
+    els.correctionFolderButton.disabled = false;
   }
 }
 
@@ -1225,7 +1297,7 @@ function renderGraph(parsed) {
   els.graphName.textContent = graphInfo.name;
   els.graphName.title = graphInfo.name;
   updateGraphStats();
-  updateFolderRow();
+  updateFolderRows();
 
   els.panel.hidden = false;
   requestAnimationFrame(() => els.panel.classList.add('is-visible'));
@@ -1552,9 +1624,9 @@ function countExercises(collection) {
   return count;
 }
 
-function updateFolderRow() {
+function updateFolderRows() {
   if (!graphInfo) {
-    els.folderRow.hidden = true;
+    els.folderRows.hidden = true;
     return;
   }
 
@@ -1562,30 +1634,59 @@ function updateFolderRow() {
   const hasExercises = graphInfo.stats.withExercises > 0;
 
   if (!hasExercises) {
-    els.folderRow.hidden = true;
+    els.folderRows.hidden = true;
     return;
   }
 
-  els.folderRow.hidden = false;
+  els.folderRows.hidden = false;
+  updateTestFolderRow(exerciseSets);
+  updateCorrectionFolderRow(exerciseSets);
+}
 
-  if (graphInfo.source) {
-    els.folderRow.dataset.state = graphInfo.sourceMissingGraph ? 'warning' : 'connected';
-    els.folderTitle.textContent = graphInfo.source.name;
-    els.folderTitle.title = graphInfo.source.name;
-    els.folderDetail.textContent = graphInfo.sourceMissingGraph
+function updateTestFolderRow(exerciseSets) {
+  const source = graphInfo.testSource;
+
+  if (source) {
+    const shared = source === graphInfo.correctionSource;
+    els.testFolderRow.dataset.state = 'connected';
+    els.testFolderTitle.textContent = source.name;
+    els.testFolderTitle.title = source.name;
+    els.testFolderDetail.textContent = shared
+      ? `${formatCount(exerciseSets, 'exercise set')} · shared with correction folder`
+      : 'Descriptor and solutions · read-only';
+    els.testFolderButton.textContent = 'Change';
+    els.testFolderButton.title = 'Choose a different test folder';
+  } else {
+    els.testFolderRow.dataset.state = 'needed';
+    els.testFolderTitle.textContent = 'Not selected';
+    els.testFolderTitle.title = 'Test folder not selected';
+    els.testFolderDetail.textContent = 'Descriptor and solutions';
+    els.testFolderButton.textContent = 'Select';
+    els.testFolderButton.title = 'Choose the test folder';
+  }
+}
+
+function updateCorrectionFolderRow(exerciseSets) {
+  const source = graphInfo.correctionSource;
+
+  if (source) {
+    els.correctionFolderRow.dataset.state = graphInfo.sourceMissingGraph
+      ? 'warning'
+      : 'connected';
+    els.correctionFolderTitle.textContent = source.name;
+    els.correctionFolderTitle.title = source.name;
+    els.correctionFolderDetail.textContent = graphInfo.sourceMissingGraph
       ? 'Graph not found here · paths use the folder root'
       : `${formatCount(exerciseSets, 'exercise set')} · read-only`;
-    els.folderButton.textContent = 'Change';
-    els.folderButton.title = 'Choose a different folder';
+    els.correctionFolderButton.textContent = 'Change';
+    els.correctionFolderButton.title = 'Choose a different correction folder';
   } else {
-    els.folderRow.dataset.state = 'needed';
-    els.folderTitle.textContent = 'Folder access needed';
-    els.folderTitle.title = 'Grant read access to exercise files';
-    els.folderDetail.textContent = graphInfo.testFolder
-      ? `${formatCount(graphInfo.stats.withExercises, 'edge')} · select the test folder`
-      : `${formatCount(graphInfo.stats.withExercises, 'edge')} with exercise files`;
-    els.folderButton.textContent = 'Grant';
-    els.folderButton.title = 'Grant read access to the test folder';
+    els.correctionFolderRow.dataset.state = 'needed';
+    els.correctionFolderTitle.textContent = 'Not selected';
+    els.correctionFolderTitle.title = 'Correction folder not selected';
+    els.correctionFolderDetail.textContent = 'Graph, corrections and student answers';
+    els.correctionFolderButton.textContent = 'Select';
+    els.correctionFolderButton.title = 'Choose the correction folder';
   }
 }
 
@@ -1788,15 +1889,21 @@ async function renderInspector() {
     return;
   }
 
-  if (!graphInfo || !graphInfo.source) {
+  const requiredRole = isStyleObject(element.data('exercises'))
+    ? 'test'
+    : 'correction';
+
+  if (!graphInfo || !sourceForRole(requiredRole)) {
     showEmptyState({
       icon: 'lock',
       title: 'Folder access needed',
-      message: graphInfo && graphInfo.testFolder
-        ? `The exercise files for “${graphInfo.fileName}” live in its test folder. Grant read access to the folder that contains the whole test material to open them here.`
-        : `The exercise files for “${graphInfo ? graphInfo.fileName : 'this graph'}” live in its folder. Grant read access to that folder to open them here.`,
-      actionLabel: 'Grant folder access',
-      onAction: () => requestGraphFolder()
+      message:
+        requiredRole === 'test'
+          ? 'Grant read access to the test folder that contains the exercise files.'
+          : 'Grant read access to the correction folder that contains the graph, correction descriptors and student answers.',
+      actionLabel:
+        requiredRole === 'test' ? 'Choose test folder' : 'Choose correction folder',
+      onAction: () => requestFolder(requiredRole)
     });
     return;
   }
@@ -1804,10 +1911,10 @@ async function renderInspector() {
   els.inspectorEmpty.hidden = true;
   els.inspectorSplit.hidden = false;
 
-  let filesByExercise;
+  let resolved;
 
   try {
-    filesByExercise = await resolveExerciseFiles(element, exerciseIds);
+    resolved = await resolveExerciseFiles(element, exerciseIds);
   } catch (error) {
     if (token !== inspectorToken) return;
     showEmptyState({
@@ -1822,8 +1929,8 @@ async function renderInspector() {
 
   if (token !== inspectorToken) return;
 
-  const entry = filesByExercise[currentExercise] || [];
-  renderPanes(entry, token);
+  const entry = resolved.files[currentExercise] || [];
+  renderPanes(entry, token, resolved.role);
 }
 
 async function renderNodeInspector(node, exerciseIds, token) {
@@ -1835,19 +1942,19 @@ async function renderNodeInspector(node, exerciseIds, token) {
   els.inspectorSplit.replaceChildren();
   els.inspectorSplit.append(createNotePane(currentExercise, noteText).article);
 
-  if (!graphInfo || !graphInfo.source) {
+  if (!graphInfo || !graphInfo.correctionSource) {
     els.inspectorSplit.append(
       createMessagePane({
         kind: 'lock',
         title: 'Student answer',
         message:
-          'Grant read access to the folder that contains the test material to open the student answer next to the note.',
+          'Grant read access to the correction folder to open the student answer next to the note.',
         stateTitle: 'Folder access needed',
         actions: [
           {
-            label: 'Grant folder access',
+            label: 'Choose correction folder',
             primary: true,
-            onClick: () => requestGraphFolder()
+            onClick: () => requestFolder('correction')
           }
         ]
       }).article
@@ -1890,19 +1997,19 @@ async function renderNodeInspector(node, exerciseIds, token) {
     );
   } else {
     for (const relativePath of files) {
-      const pane = createFilePane(relativePath);
+      const pane = createFilePane(relativePath, 'correction');
       els.inspectorSplit.append(pane.article);
 
       let resolvedPath;
       try {
-        resolvedPath = resolveExercisePath(relativePath);
+        resolvedPath = resolveExercisePath(relativePath, 'correction');
       } catch (error) {
-        showPaneError(pane, error, relativePath);
+        showPaneError(pane, error, relativePath, 'correction');
         continue;
       }
 
       pane.resolvedPath = resolvedPath;
-      loadPane(pane, relativePath, resolvedPath, token);
+      loadPane(pane, relativePath, resolvedPath, token, 'correction');
     }
   }
 
@@ -2074,7 +2181,13 @@ function renderInspectorNotice() {
   els.inspectorNotice.replaceChildren();
   els.inspectorNotice.hidden = true;
 
-  if (!graphInfo || !graphInfo.source || !graphInfo.sourceMissingGraph) return;
+  if (
+    !graphInfo ||
+    !graphInfo.correctionSource ||
+    !graphInfo.sourceMissingGraph
+  ) {
+    return;
+  }
 
   els.inspectorNotice.hidden = false;
 
@@ -2083,13 +2196,13 @@ function renderInspectorNotice() {
 
   const copy = document.createElement('p');
   copy.className = 'notice-copy';
-  copy.textContent = `“${graphInfo.fileName}” was not found in “${graphInfo.source.name}”. Relative paths are resolved from the folder root.`;
+  copy.textContent = `“${graphInfo.fileName}” was not found in “${graphInfo.correctionSource.name}”. Relative paths are resolved from the folder root.`;
 
   const button = document.createElement('button');
   button.type = 'button';
   button.className = 'ghost-button small';
   button.textContent = 'Change folder';
-  button.addEventListener('click', () => requestGraphFolder());
+  button.addEventListener('click', () => requestFolder('correction'));
 
   els.inspectorNotice.append(icon, copy, button);
 }
@@ -2130,7 +2243,7 @@ function showEmptyState({ icon, title, message, sample, actionLabel, onAction })
   }
 }
 
-function renderPanes(files, token) {
+function renderPanes(files, token, role = 'correction') {
   els.inspectorSplit.replaceChildren();
   els.inspectorSplit.hidden = false;
 
@@ -2139,7 +2252,9 @@ function renderPanes(files, token) {
       icon: 'file',
       title: 'This exercise has no files',
       message:
-        'No answer files were found. Check the students’ correction files for this exercise id.'
+        role === 'test'
+          ? 'No exercise files were found in the test folder.'
+          : 'No answer files were found. Check the students’ correction files for this exercise id.'
     });
     return;
   }
@@ -2147,23 +2262,23 @@ function renderPanes(files, token) {
   els.inspectorSplit.dataset.count = String(files.length);
 
   for (const relativePath of files) {
-    const pane = createFilePane(relativePath);
+    const pane = createFilePane(relativePath, role);
     els.inspectorSplit.append(pane.article);
 
     let resolvedPath;
     try {
-      resolvedPath = resolveExercisePath(relativePath);
+      resolvedPath = resolveExercisePath(relativePath, role);
     } catch (error) {
-      showPaneError(pane, error, relativePath);
+      showPaneError(pane, error, relativePath, role);
       continue;
     }
 
     pane.resolvedPath = resolvedPath;
-    loadPane(pane, relativePath, resolvedPath, token);
+    loadPane(pane, relativePath, resolvedPath, token, role);
   }
 }
 
-function createFilePane(relativePath) {
+function createFilePane(relativePath, role = 'correction') {
   const article = document.createElement('article');
   article.className = 'file-pane';
   article.dataset.path = relativePath;
@@ -2227,6 +2342,7 @@ function createFilePane(relativePath) {
     meta,
     copyButton,
     reloadButton,
+    role,
     text: null,
     resolvedPath: null
   };
@@ -2238,7 +2354,7 @@ function createFilePane(relativePath) {
 
   reloadButton.addEventListener('click', () => {
     if (!pane.resolvedPath) return;
-    fileCache.delete(cacheKey(pane.resolvedPath));
+    fileCache.delete(cacheKey(pane.resolvedPath, pane.role));
     renderInspector();
   });
 
@@ -2266,13 +2382,15 @@ function renderSkeleton() {
   return skeleton;
 }
 
-async function loadPane(pane, relativePath, resolvedPath, token) {
+async function loadPane(pane, relativePath, resolvedPath, token, role = 'correction') {
   let file;
 
   try {
-    file = await readSourceFile(resolvedPath);
+    file = await readSourceFile(resolvedPath, sourceForRole(role), role);
   } catch (error) {
-    if (token === inspectorToken) showPaneError(pane, error, relativePath);
+    if (token === inspectorToken) {
+      showPaneError(pane, error, relativePath, role);
+    }
     return;
   }
 
@@ -2313,7 +2431,7 @@ async function loadPane(pane, relativePath, resolvedPath, token) {
     text = (await slice.text()).replace(/^\uFEFF/, '');
   } catch (error) {
     if (token === inspectorToken) {
-      showPaneError(pane, error, relativePath);
+      showPaneError(pane, error, relativePath, role);
     }
     return;
   }
@@ -2431,7 +2549,7 @@ function renderBinaryFile(pane, file, resolvedPath) {
   pane.body.append(state);
 }
 
-function showPaneError(pane, error, relativePath) {
+function showPaneError(pane, error, relativePath, role = 'correction') {
   let title = 'Could not read file';
   let message = error && error.message ? error.message : String(error);
   let showGrant = false;
@@ -2445,7 +2563,7 @@ function showPaneError(pane, error, relativePath) {
       title = 'Folder access needed';
       showGrant = true;
     }
-  } else if (!graphInfo || !graphInfo.source) {
+  } else if (!graphInfo || !sourceForRole(role)) {
     title = 'Folder access needed';
     showGrant = true;
   }
@@ -2466,7 +2584,7 @@ function showPaneError(pane, error, relativePath) {
       {
         label: showGrant ? 'Grant access' : 'Change folder',
         primary: showGrant,
-        onClick: () => requestGraphFolder()
+        onClick: () => requestFolder(role)
       }
     ]
   });
@@ -2515,18 +2633,27 @@ function renderPaneState(pane, options) {
   pane.body.append(state);
 }
 
-function resolveExercisePath(relativePath) {
-  if (!graphInfo || !graphInfo.source) {
+function sourceForRole(role) {
+  return role === 'test' ? testSource : correctionSource;
+}
+
+function resolveExercisePath(relativePath, role = 'correction') {
+  const source = sourceForRole(role);
+
+  if (!graphInfo || !source) {
     throw new SourceError(
       'permission',
-      'Grant read access to the folder that contains the test material to open its exercises.'
+      role === 'test'
+        ? 'Grant read access to the test folder to open its files.'
+        : 'Grant read access to the correction folder to open its exercises.'
     );
   }
 
-  return resolveFrom(getExerciseBaseDirectory(), relativePath);
+  const base = role === 'test' ? '' : getCorrectionBaseDirectory();
+  return resolveFrom(base, relativePath);
 }
 
-function getExerciseBaseDirectory() {
+function getCorrectionBaseDirectory() {
   if (!graphInfo) return '';
 
   const graphDirectory = graphInfo.relPath ? dirname(graphInfo.relPath) : '';
@@ -2539,28 +2666,30 @@ function getExerciseBaseDirectory() {
     if (error instanceof PathError) {
       throw new SourceError(
         'permission',
-        `The test folder “${graphInfo.testFolder}” is outside “${graphInfo.source.name}”. Grant access to the folder that contains the test material.`
+        `The graph's test-folder “${graphInfo.testFolder}” is outside “${graphInfo.correctionSource.name}”. Choose a correction folder that contains it.`
       );
     }
     throw error;
   }
 }
 
-function readSourceFile(path) {
-  if (!currentSource) {
+function readSourceFile(path, source = correctionSource, role = 'correction') {
+  if (!source) {
     return Promise.reject(
       new SourceError(
         'permission',
-        'Grant read access to the folder that contains the test material to open its exercises.'
+        role === 'test'
+          ? 'Grant read access to the test folder to open its files.'
+          : 'Grant read access to the correction folder to open its exercises.'
       )
     );
   }
 
-  const key = cacheKey(path);
+  const key = cacheKey(path, role);
   let promise = fileCache.get(key);
 
   if (!promise) {
-    promise = currentSource.read(path);
+    promise = source.read(path);
     fileCache.set(key, promise);
     promise.catch(() => fileCache.delete(key));
   }
@@ -2568,8 +2697,8 @@ function readSourceFile(path) {
   return promise;
 }
 
-function cacheKey(path) {
-  return `${sourceGeneration}:${path}`;
+function cacheKey(path, role = 'correction') {
+  return `${sourceGeneration}:${role}:${path}`;
 }
 
 function getExerciseIds(edge) {
@@ -2627,13 +2756,16 @@ function getElementExerciseIds(element) {
 async function resolveExerciseFiles(edge, exerciseIds) {
   const exercises = edge.data('exercises');
 
-  // Legacy format: the edge already stores the explicit file paths.
+  // Legacy format: the edge already stores explicit test-folder paths.
   if (isStyleObject(exercises)) {
-    return Object.fromEntries(
-      Object.entries(exercises).filter(
-        ([name, files]) => name && Array.isArray(files) && files.length > 0
+    return {
+      role: 'test',
+      files: Object.fromEntries(
+        Object.entries(exercises).filter(
+          ([name, files]) => name && Array.isArray(files) && files.length > 0
+        )
       )
-    );
+    };
   }
 
   const studentIds = [
@@ -2644,7 +2776,10 @@ async function resolveExerciseFiles(edge, exerciseIds) {
     )
   ];
 
-  return resolveStudentAnswerFiles(studentIds, exerciseIds);
+  return {
+    role: 'correction',
+    files: await resolveStudentAnswerFiles(studentIds, exerciseIds)
+  };
 }
 
 async function resolveStudentAnswerFiles(studentIds, exerciseIds) {

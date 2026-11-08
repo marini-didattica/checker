@@ -393,12 +393,18 @@ input:focus-visible,
 
 /* ---------- Folder access row ---------- */
 
+.folder-rows {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 16px;
+}
+
 .folder-row {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 9px;
-  margin: 0 0 16px;
+  margin: 0;
   padding: 9px 10px;
   border: 1px solid rgba(148, 170, 220, 0.14);
   border-radius: 11px;
@@ -433,11 +439,29 @@ input:focus-visible,
 }
 
 .folder-title {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
   margin: 0;
   overflow: hidden;
   color: var(--muted-strong);
   font-size: 0.75rem;
   font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folder-role {
+  flex: none;
+  color: var(--accent);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.folder-name {
+  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }

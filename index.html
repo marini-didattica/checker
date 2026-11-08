@@ -32,12 +32,13 @@
         </div>
 
         <p class="eyebrow">Cytoscape.js · confidence viewer</p>
-        <h1>Open the test folder</h1>
+        <h1>Open the correction folder</h1>
         <p id="drop-help" class="muted">
-          Choose or drop the folder with the test material. The viewer finds the
-          graph JSON inside it and can read every exercise file straight away.
-          Edges are drawn with a thickness that follows <code>confidence</code>,
-          and clicking one opens its files side by side.
+          Choose or drop the folder with the graph, the correction descriptors
+          and the student answers. The viewer finds the graph JSON inside it and
+          can read every exercise file straight away. Edges are drawn with a
+          thickness that follows <code>confidence</code>, and clicking one opens
+          its files side by side.
         </p>
 
         <pre class="format-sample"><code>{
@@ -59,14 +60,16 @@
 }</code></pre>
 
         <div class="drop-actions">
-          <button id="open-folder" class="primary-button" type="button">Open test folder…</button>
+          <button id="open-folder" class="primary-button" type="button">Open correction folder…</button>
           <button id="browse-file" class="ghost-button" type="button">Browse graph file</button>
         </div>
 
         <p class="drop-note">
-          Choosing the test folder grants read access once, so exercise files open
-          without another prompt. You can also drop a graph JSON file; the viewer
-          will ask for its test folder before you open any exercise.
+          Choosing the correction folder grants read access once, so exercise files
+          open without another prompt. It also becomes the default test folder; you
+          can point the test folder elsewhere from the graph panel. You can also drop
+          a graph JSON file; the viewer will ask for its correction folder before you
+          open any exercise.
         </p>
         <p id="drop-error" class="drop-error" role="alert" hidden></p>
       </div>
@@ -100,13 +103,30 @@
 
       <p id="graph-stats" class="graph-stats">0 nodes · 0 edges</p>
 
-      <div id="folder-row" class="folder-row" hidden>
-        <span id="folder-dot" class="folder-dot" aria-hidden="true"></span>
-        <div class="folder-copy">
-          <p id="folder-title" class="folder-title">Folder access</p>
-          <p id="folder-detail" class="folder-detail">Exercise files are unavailable.</p>
+      <div id="folder-rows" class="folder-rows" hidden>
+        <div id="test-folder-row" class="folder-row" data-state="needed">
+          <span class="folder-dot" aria-hidden="true"></span>
+          <div class="folder-copy">
+            <p class="folder-title">
+              <span class="folder-role">Test</span>
+              <span id="test-folder-title" class="folder-name">Not selected</span>
+            </p>
+            <p id="test-folder-detail" class="folder-detail">Descriptor and solutions.</p>
+          </div>
+          <button id="test-folder-button" class="ghost-button small" type="button">Select</button>
         </div>
-        <button id="folder-button" class="ghost-button small" type="button">Grant</button>
+
+        <div id="correction-folder-row" class="folder-row" data-state="needed">
+          <span class="folder-dot" aria-hidden="true"></span>
+          <div class="folder-copy">
+            <p class="folder-title">
+              <span class="folder-role">Correction</span>
+              <span id="correction-folder-title" class="folder-name">Not selected</span>
+            </p>
+            <p id="correction-folder-detail" class="folder-detail">Graph, corrections and student answers.</p>
+          </div>
+          <button id="correction-folder-button" class="ghost-button small" type="button">Select</button>
+        </div>
       </div>
 
       <div class="controls">
@@ -294,8 +314,8 @@
       <form method="dialog" class="dialog-card">
         <header class="dialog-head">
           <div>
-            <p class="panel-kicker">Exercise files</p>
-            <h2 id="folder-dialog-title">Choose the test folder</h2>
+            <p class="panel-kicker">Folder access</p>
+            <h2 id="folder-dialog-title">Choose the correction folder</h2>
             <p id="folder-dialog-subtitle" class="dialog-subtitle"></p>
           </div>
           <button class="icon-button" type="submit" value="cancel" aria-label="Close">

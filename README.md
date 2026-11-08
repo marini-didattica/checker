@@ -38,36 +38,42 @@ serves the same HTML, CSS, JS, and `examples/` files.
 
 ## Open a graph
 
-The quickest way in is to choose the test folder:
+The quickest way in is to choose the correction folder:
 
-1. **Open test folder…** to grant read access to the folder that contains the
-   test material. The viewer scans its subfolders and opens the graph JSON
-   automatically, or asks which graph to use if there are several.
-2. **Drop the test folder** anywhere on the drop card (or on the window once a
-   graph is open). The whole folder tree becomes available to the viewer.
+1. **Open correction folder…** to grant read access to the folder that contains
+   the graph JSON, `manifest.json`, `correzioni/` and the student answers. The
+   viewer scans its subfolders and opens the graph JSON automatically, or asks
+   which graph to use if there are several.
+2. **Drop the correction folder** anywhere on the drop card (or on the window
+   once a graph is open). The whole folder tree becomes available to the viewer.
 3. **Browse graph file** to pick one JSON file, or drop a JSON file. The viewer
-   then asks immediately for the test folder before you open any exercise.
+   then asks immediately for the correction folder before you open any exercise.
+
+The first folder you choose or drop becomes both the **correction folder** and
+the **test folder**. The test folder is the shared exam definition (descriptor
+and solutions) and can be changed independently from the graph panel later.
 
 Try the included example:
 
-- Choose **Open test folder…** and select the `examples/` directory, or
+- Choose **Open correction folder…** and select the `examples/` directory, or
 - drop the `examples/` folder onto the page.
 
 ### Folder access
 
 Exercise files are read from the local filesystem, so the browser needs explicit
-permission. Choosing the test folder first grants that permission upfront; if
-you open a single JSON file instead, the viewer shows a folder prompt straight
+permission. Choosing the correction folder first grants that permission upfront;
+if you open a single JSON file instead, the viewer shows a folder prompt straight
 away, not when you first click an edge.
 
-When the graph declares a `test-folder`, select the folder that contains the
-whole test material (the one the `test-folder` path points to), not just the
-directory with the JSON file. The same relative test folder is then used for
-every exercise path.
+When the graph declares a `test-folder`, the correction folder must contain the
+folder that the `test-folder` path points to. The correction folder root is used
+for `manifest.json`, `correzioni/` and the student answers. The separate test
+folder is used for legacy explicit exercise paths and for the shared test
+descriptor and solutions.
 
 Browsers do not reveal the path or parent folder of a single selected file, so a
 folder picker cannot be pointed at the JSON's parent automatically. Opening the
-test folder first avoids that limitation. When a JSON file is opened first,
+correction folder first avoids that limitation. When a JSON file is opened first,
 Chromium starts the picker in the file's own folder where possible.
 
 - In Chromium browsers (Chrome, Edge, Brave, Arc, …) the app uses the
@@ -77,8 +83,8 @@ Chromium starts the picker in the file's own folder where possible.
   standard folder picker (`<input webkitdirectory>`). The selected folder's files
   are read through the browser's normal file-list mechanism.
 
-You can grant or change access later from the **Grant** / **Change** button in
-the graph panel.
+You can grant or change each folder independently from the **Test** and
+**Correction** rows in the graph panel.
 
 Access is **read-only**. Nothing is uploaded, and the Node server serves only the
 app's own static files. File reads happen entirely in the browser.
@@ -224,17 +230,18 @@ exercise ids become tabs when there is more than one.
 
 ### `test-folder`
 
-A path, **relative to the graph JSON file**, that points to the folder holding
-the whole test material. Exercise paths are resolved from that folder. For
-example, a graph stored in `prova-1/misc/grafo-copie.json` can declare:
+A path, **relative to the graph JSON file**, that points to the correction
+folder root. That root holds `manifest.json`, `correzioni/` and the student
+answers. For example, a graph stored in
+`prova-1/misc/grafo-copie.json` can declare:
 
 ```json
 { "test-folder": ".." }
 ```
 
-The graph is then expected to access `prova-1/` (the parent of `misc/`) and its
-exercise paths are read from there. When such a graph is dropped, the viewer
-asks for access to the test folder immediately so the exercise files are
+The graph is then expected to access `prova-1/` (the parent of `misc/`) inside
+the selected correction folder. When such a graph is dropped, the viewer asks
+for access to the correction folder immediately so the exercise files are
 available in the inspector.
 
 `test-folder` is optional. Without it, exercise paths are resolved relative to
@@ -247,16 +254,17 @@ the two answer files from the correction descriptors of the edge's source and
 target students:
 
 ```text
-<test folder>/manifest.json          → answer-folder
-<test folder>/correzioni/<student-id>.json
+<correction folder>/manifest.json          → answer-folder
+<correction folder>/correzioni/<student-id>.json
   → exercises.<exercise-id>.answer-file
 ```
 
-The manifest's `answer-folder` is resolved relative to the test folder, then the
-student slug and `answer-file` are appended. Legacy correction descriptors that
-still carry their own `answer-folder` are also supported. Both endpoints' files
-are shown side by side; if a student has no answer for an exercise id, that pane
-is omitted. Corrections with `"absent": true` are ignored.
+The manifest's `answer-folder` is resolved relative to the correction folder,
+then the student slug and `answer-file` are appended. Legacy correction
+descriptors that still carry their own `answer-folder` are also supported. Both
+endpoints' files are shown side by side; if a student has no answer for an
+exercise id, that pane is omitted. Corrections with `"absent": true` are
+ignored.
 
 When an edge has no explicit `label`, its label defaults to the exercise ids,
 joined with spaces (for example `"E1 E2 S5"`). An explicit `data.label` (or a
@@ -264,8 +272,7 @@ joined with spaces (for example `"E1 E2 S5"`). An explicit `data.label` (or a
 
 The older object form, which maps an exercise name directly to explicit file
 paths (`{ "E1": ["path/a.py", "path/b.py"] }`), is still accepted. Explicit
-paths are resolved relative to the **test folder**, or to the directory
-containing the graph JSON when `test-folder` is absent.
+paths are resolved relative to the selected **test folder**.
 
 Absolute paths and paths that escape the granted folder are rejected.
 
