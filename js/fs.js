@@ -151,6 +151,18 @@ export function resolveDirectoryFrom(baseDirectory, relativePath) {
   return parts.join('/');
 }
 
+/**
+ * Resolve a student's answer folder from the manifest's answer root.
+ *
+ * The manifest stores the class-wide answer root (`risposte` by default);
+ * each student's files live in a subfolder named after the correction
+ * descriptor, e.g. `risposte/bottea-sofia`.
+ */
+export function resolveStudentAnswerFolder(answerRoot, studentId) {
+  const root = resolveDirectoryFrom('', answerRoot || 'risposte');
+  return resolveDirectoryFrom(root, String(studentId));
+}
+
 export function dirname(path) {
   const parts = String(path).replace(/\\/g, '/').split('/').filter(Boolean);
   parts.pop();

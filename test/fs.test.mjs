@@ -8,7 +8,8 @@ import {
   findGraphCandidates,
   normalizeRelativePath,
   resolveDirectoryFrom,
-  resolveFrom
+  resolveFrom,
+  resolveStudentAnswerFolder
 } from '../js/fs.js';
 
 test('normalizes relative paths', () => {
@@ -46,6 +47,25 @@ test('resolves a test folder relative to the graph file', () => {
   assert.throws(() => resolveDirectoryFrom('', '..'), /outside the granted folder/);
   assert.throws(() => resolveDirectoryFrom('misc', '../..'), /outside the granted folder/);
   assert.throws(() => resolveDirectoryFrom('misc', '/tmp'), /Absolute paths/);
+});
+
+test('resolves each student folder under the manifest answer root', () => {
+  assert.equal(
+    resolveStudentAnswerFolder('risposte', 'bottea-sofia'),
+    'risposte/bottea-sofia'
+  );
+  assert.equal(
+    resolveStudentAnswerFolder('', 'bottea-sofia'),
+    'risposte/bottea-sofia'
+  );
+  assert.equal(
+    resolveStudentAnswerFolder('answers/set-b', 'melis-nicolò'),
+    'answers/set-b/melis-nicolò'
+  );
+  assert.throws(
+    () => resolveStudentAnswerFolder('risposte', ''),
+    /empty|does not name/
+  );
 });
 
 test('path helpers', () => {

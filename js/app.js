@@ -10,7 +10,8 @@ import {
   findGraphCandidates,
   isImagePath,
   resolveDirectoryFrom,
-  resolveFrom
+  resolveFrom,
+  resolveStudentAnswerFolder
 } from './fs.js';
 import { highlightCode } from './highlight.js';
 
@@ -2676,8 +2677,12 @@ async function resolveStudentAnswerFiles(studentIds, exerciseIds) {
           typeof manifest['answer-folder'] === 'string'
             ? manifest['answer-folder'].trim()
             : '';
-        // Manifest paths are relative to the test folder root.
-        baseFolder = resolveDirectoryFrom('', manifestAnswerFolder || 'risposte');
+        // Manifest paths are relative to the test folder root. Each student
+        // has a folder named after the correction descriptor's stem.
+        baseFolder = resolveStudentAnswerFolder(
+          manifestAnswerFolder,
+          studentId
+        );
       }
     } catch (error) {
       throw new SourceError(
