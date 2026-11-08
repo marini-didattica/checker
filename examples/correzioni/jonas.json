@@ -1,0 +1,11 @@
+{
+  "set": "default",
+  "exercises": {
+    "two-sum": {
+      "answer-file": "two-sum.py"
+    },
+    "binary-search": {
+      "answer-file": "binary-search.js"
+    }
+  }
+}

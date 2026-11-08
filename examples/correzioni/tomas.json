@@ -1,0 +1,17 @@
+{
+  "set": "default",
+  "exercises": {
+    "merge-intervals": {
+      "answer-file": "merge-intervals.ts"
+    },
+    "lru-cache": {
+      "answer-file": "lru-cache.js"
+    },
+    "dijkstra": {
+      "answer-file": "dijkstra.py"
+    },
+    "top-k": {
+      "answer-file": "top-k.py"
+    }
+  }
+}

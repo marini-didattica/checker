@@ -18,7 +18,7 @@ test('parses nodes, edges, confidence, and exercises', () => {
               source: 'a',
               target: 'b',
               confidence: 0.6,
-              exercises: { 'exercise-name': ['file1', 'file2'] }
+              exercises: ['E1', 'E2']
             },
             style: { 'line-color': '#7ee2b8' }
           }
@@ -45,11 +45,11 @@ test('parses nodes, edges, confidence, and exercises', () => {
   const edge = parsed.elements[2];
   assert.equal(edge.scratch.confidence, 0.6);
   assert.equal(edge.scratch.baseWidth, 2);
-  assert.deepEqual(edge.data.exercises, { 'exercise-name': ['file1', 'file2'] });
+  assert.deepEqual(edge.data.exercises, ['E1', 'E2']);
   assert.equal(edge.scratch.styleOverride['target-arrow-color'], '#7ee2b8');
 });
 
-test('edge labels default to exercise keys unless an explicit label is set', () => {
+test('edge labels default to exercise ids unless an explicit label is set', () => {
   const parsed = parseGraph({
     elements: {
       nodes: [{ data: { id: 'a' } }, { data: { id: 'b' } }],
@@ -58,10 +58,7 @@ test('edge labels default to exercise keys unless an explicit label is set', () 
           data: {
             source: 'a',
             target: 'b',
-            exercises: {
-              e1: ['one.py'],
-              e2: ['two.py']
-            }
+            exercises: ['E1', 'E2']
           }
         },
         {
@@ -69,7 +66,7 @@ test('edge labels default to exercise keys unless an explicit label is set', () 
             source: 'a',
             target: 'b',
             label: 'custom label',
-            exercises: { e1: ['one.py'] }
+            exercises: ['E1']
           }
         },
         { data: { source: 'b', target: 'a' } }
@@ -77,7 +74,7 @@ test('edge labels default to exercise keys unless an explicit label is set', () 
     }
   });
 
-  assert.equal(parsed.elements[2].data.label, 'e1 e2');
+  assert.equal(parsed.elements[2].data.label, 'E1 E2');
   assert.equal(parsed.elements[3].data.label, 'custom label');
   assert.equal(parsed.elements[4].data.label, undefined);
 });
@@ -201,7 +198,7 @@ test('parses node confidence and exercise notes', () => {
   assert.match(parsed.warnings.join('\n'), /empty exercise id/);
 });
 
-test('drops invalid exercise entries and keeps valid ones', () => {
+test('drops invalid exercise ids and keeps valid ones', () => {
   const parsed = parseGraph({
     elements: {
       nodes: [{ data: { id: 'a' } }, { data: { id: 'b' } }],
@@ -210,24 +207,25 @@ test('drops invalid exercise entries and keeps valid ones', () => {
           data: {
             source: 'a',
             target: 'b',
-            exercises: {
-              good: ['one.js', 'two.js'],
-              bad: ['one.js', 42],
-              worse: 'not-an-array'
-            }
+            exercises: ['E1', 'E1', '', 42, 'S5']
+          }
+        },
+        {
+          data: {
+            source: 'a',
+            target: 'b',
+            exercises: 'not-an-array'
           }
         }
       ]
     }
   });
 
-  assert.deepEqual(parsed.elements[2].data.exercises, {
-    good: ['one.js', 'two.js'],
-    bad: ['one.js']
-  });
+  assert.deepEqual(parsed.elements[2].data.exercises, ['E1', 'S5']);
+  assert.equal(parsed.elements[3].data.exercises, undefined);
   assert.equal(parsed.stats.withExercises, 1);
-  assert.match(parsed.warnings.join('\n'), /non-string paths/);
-  assert.match(parsed.warnings.join('\n'), /must contain an array/);
+  assert.match(parsed.warnings.join('\n'), /non-empty string/);
+  assert.match(parsed.warnings.join('\n'), /invalid “exercises” value/);
 });
 
 test('does not accept legacy root-level nodes and edges', () => {

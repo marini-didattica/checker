@@ -1,0 +1,11 @@
+{
+  "set": "default",
+  "exercises": {
+    "dijkstra": {
+      "answer-file": "dijkstra.py"
+    },
+    "n-queens": {
+      "answer-file": "n-queens.rs"
+    }
+  }
+}

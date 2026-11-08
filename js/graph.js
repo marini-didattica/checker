@@ -9,7 +9,8 @@ const DEFAULT_EDGE_WIDTH = 2;
  *   { "elements": [ ...nodes and edges... ] }
  *
  * Graph-specific extensions:
- *   test-folder: path (relative to the graph file) containing the test material
+ *   test-folder: path (relative to the graph file) containing the exam folder
+ *                root with correzioni/ and risposte/
  *
  * Node data extensions:
  *   confidence: number in [0, 1], drawn as a node contour
@@ -17,11 +18,10 @@ const DEFAULT_EDGE_WIDTH = 2;
  *
  * Edge data extensions:
  *   confidence: number in [0, 1]
- *   exercises:  one of
- *     - string[] of exercise ids (resolved through each student's correction file)
- *     - { [exerciseName: string]: string[] } of explicit file paths (legacy)
+ *   exercises: string[] of exercise ids, resolved through each student's
+ *              correction file
  *
- * Edges without an explicit label use the exercise names/ids as their label.
+ * Edges without an explicit label use the exercise ids as their label.
  */
 export function parseGraph(raw, fallbackName = 'Untitled graph') {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
@@ -170,11 +170,9 @@ export function parseGraph(raw, fallbackName = 'Untitled graph') {
       data.exercises = exercises;
       exerciseCount += 1;
 
-      // Without an explicit label, use the exercise names/ids as the edge label.
+      // Without an explicit label, use the exercise ids as the edge label.
       if (!hasLabel) {
-        data.label = Array.isArray(exercises)
-          ? exercises.join(' ')
-          : Object.keys(exercises).join(' ');
+        data.label = exercises.join(' ');
       }
     } else {
       delete data.exercises;
@@ -340,73 +338,30 @@ function normalizeExerciseNotes(value, nodeId, warnings) {
 function normalizeExercises(value, edgeId, warnings) {
   if (value == null) return null;
 
-  if (Array.isArray(value)) {
-    const ids = [];
-    const seen = new Set();
-
-    for (const item of value) {
-      if (typeof item !== 'string' || item.trim() === '') {
-        warnings.push(
-          `Edge “${edgeId}” has an exercise id that is not a non-empty string; it was skipped.`
-        );
-        continue;
-      }
-
-      const id = item.trim();
-      if (seen.has(id)) continue;
-
-      seen.add(id);
-      ids.push(id);
-    }
-
-    return ids.length > 0 ? ids : null;
-  }
-
-  if (!isPlainObject(value)) {
+  if (!Array.isArray(value)) {
     warnings.push(`Edge “${edgeId}” has an invalid “exercises” value; it was ignored.`);
     return null;
   }
 
-  const normalized = {};
-  let kept = 0;
+  const ids = [];
+  const seen = new Set();
 
-  for (const [name, files] of Object.entries(value)) {
-    const exerciseName = String(name).trim();
-
-    if (!exerciseName) {
-      warnings.push(`Edge “${edgeId}” has an exercise with an empty name; it was skipped.`);
-      continue;
-    }
-
-    if (!Array.isArray(files)) {
+  for (const item of value) {
+    if (typeof item !== 'string' || item.trim() === '') {
       warnings.push(
-        `Exercise “${exerciseName}” on edge “${edgeId}” must contain an array of file paths; it was skipped.`
+        `Edge “${edgeId}” has an exercise id that is not a non-empty string; it was skipped.`
       );
       continue;
     }
 
-    const validFiles = files
-      .filter((file) => typeof file === 'string' && file.trim() !== '')
-      .map((file) => file.trim());
+    const id = item.trim();
+    if (seen.has(id)) continue;
 
-    if (validFiles.length === 0) {
-      warnings.push(
-        `Exercise “${exerciseName}” on edge “${edgeId}” has no valid file paths; it was skipped.`
-      );
-      continue;
-    }
-
-    if (validFiles.length !== files.length) {
-      warnings.push(
-        `Exercise “${exerciseName}” on edge “${edgeId}” contains non-string paths; those entries were dropped.`
-      );
-    }
-
-    normalized[exerciseName] = validFiles;
-    kept += 1;
+    seen.add(id);
+    ids.push(id);
   }
 
-  return kept > 0 ? normalized : null;
+  return ids.length > 0 ? ids : null;
 }
 
 function takeNumericStyle(style, property) {

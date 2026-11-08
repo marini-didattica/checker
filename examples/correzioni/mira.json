@@ -1,0 +1,17 @@
+{
+  "set": "default",
+  "exercises": {
+    "two-sum": {
+      "answer-file": "two-sum.py"
+    },
+    "binary-search": {
+      "answer-file": "binary-search.js"
+    },
+    "valid-parentheses": {
+      "answer-file": "valid-parentheses.go"
+    },
+    "top-k": {
+      "answer-file": "top-k.py"
+    }
+  }
+}

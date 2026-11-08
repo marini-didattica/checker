@@ -1,0 +1,14 @@
+{
+  "set": "default",
+  "exercises": {
+    "binary-search": {
+      "answer-file": "binary-search.js"
+    },
+    "merge-intervals": {
+      "answer-file": "merge-intervals.ts"
+    },
+    "lru-cache": {
+      "answer-file": "lru-cache.js"
+    }
+  }
+}

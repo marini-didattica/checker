@@ -393,18 +393,12 @@ input:focus-visible,
 
 /* ---------- Folder access row ---------- */
 
-.folder-rows {
-  display: grid;
-  gap: 8px;
-  margin: 0 0 16px;
-}
-
 .folder-row {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 9px;
-  margin: 0;
+  margin: 0 0 16px;
   padding: 9px 10px;
   border: 1px solid rgba(148, 170, 220, 0.14);
   border-radius: 11px;

@@ -1,10 +1,13 @@
 {
   "name": "Cheating Graph · Algorithms Study Group",
-  "test-folder": ".",
+  "test-folder": "..",
   "elements": {
     "nodes": [
       {
-        "data": { "id": "mira", "group": "student" },
+        "data": {
+          "id": "mira",
+          "group": "student"
+        },
         "style": {
           "label": "Mira",
           "width": 52,
@@ -14,7 +17,10 @@
         }
       },
       {
-        "data": { "id": "jonas", "group": "student" },
+        "data": {
+          "id": "jonas",
+          "group": "student"
+        },
         "style": {
           "label": "Jonas",
           "width": 46,
@@ -24,7 +30,10 @@
         }
       },
       {
-        "data": { "id": "amara", "group": "student" },
+        "data": {
+          "id": "amara",
+          "group": "student"
+        },
         "style": {
           "label": "Amara",
           "width": 48,
@@ -34,7 +43,10 @@
         }
       },
       {
-        "data": { "id": "tomas", "group": "student" },
+        "data": {
+          "id": "tomas",
+          "group": "student"
+        },
         "style": {
           "label": "Tomas",
           "width": 44,
@@ -44,7 +56,10 @@
         }
       },
       {
-        "data": { "id": "lena", "group": "student" },
+        "data": {
+          "id": "lena",
+          "group": "student"
+        },
         "style": {
           "label": "Lena",
           "width": 46,
@@ -54,7 +69,10 @@
         }
       },
       {
-        "data": { "id": "noor", "group": "student" },
+        "data": {
+          "id": "noor",
+          "group": "student"
+        },
         "style": {
           "label": "Noor",
           "width": 50,
@@ -64,7 +82,10 @@
         }
       },
       {
-        "data": { "id": "study-bot", "group": "tool" },
+        "data": {
+          "id": "study-bot",
+          "group": "tool"
+        },
         "style": {
           "label": "Study Bot",
           "width": 40,
@@ -81,12 +102,9 @@
           "source": "mira",
           "target": "jonas",
           "confidence": 0.92,
-          "exercises": {
-            "two-sum": [
-              "exercises/two-sum/mira.py",
-              "exercises/two-sum/jonas.py"
-            ]
-          }
+          "exercises": [
+            "two-sum"
+          ]
         },
         "style": {
           "label": "shares solutions",
@@ -102,12 +120,9 @@
           "source": "jonas",
           "target": "amara",
           "confidence": 0.64,
-          "exercises": {
-            "binary-search": [
-              "exercises/binary-search/jonas.js",
-              "exercises/binary-search/amara.js"
-            ]
-          }
+          "exercises": [
+            "binary-search"
+          ]
         },
         "style": {
           "label": "reviewed",
@@ -121,16 +136,10 @@
           "source": "amara",
           "target": "tomas",
           "confidence": 0.31,
-          "exercises": {
-            "merge-intervals": [
-              "exercises/merge-intervals/amara.ts",
-              "exercises/merge-intervals/tomas.ts"
-            ],
-            "lru-cache": [
-              "exercises/lru-cache/amara.js",
-              "exercises/lru-cache/tomas.js"
-            ]
-          }
+          "exercises": [
+            "merge-intervals",
+            "lru-cache"
+          ]
         },
         "style": {
           "label": "suspicious overlap",
@@ -144,12 +153,9 @@
           "source": "tomas",
           "target": "lena",
           "confidence": 0.08,
-          "exercises": {
-            "dijkstra": [
-              "exercises/dijkstra/tomas.py",
-              "exercises/dijkstra/lena.py"
-            ]
-          }
+          "exercises": [
+            "dijkstra"
+          ]
         },
         "style": {
           "label": "faint link",
@@ -164,12 +170,9 @@
           "source": "lena",
           "target": "noor",
           "confidence": 0.47,
-          "exercises": {
-            "n-queens": [
-              "exercises/n-queens/lena.rs",
-              "exercises/n-queens/noor.rs"
-            ]
-          }
+          "exercises": [
+            "n-queens"
+          ]
         },
         "style": {
           "label": "compared notes",
@@ -183,16 +186,10 @@
           "source": "noor",
           "target": "mira",
           "confidence": 0.78,
-          "exercises": {
-            "valid-parentheses": [
-              "exercises/valid-parentheses/noor.go",
-              "exercises/valid-parentheses/mira.go"
-            ],
-            "top-k": [
-              "exercises/top-k/noor.py",
-              "exercises/top-k/mira.py"
-            ]
-          }
+          "exercises": [
+            "valid-parentheses",
+            "top-k"
+          ]
         },
         "style": {
           "label": "same answers",
@@ -206,12 +203,9 @@
           "source": "mira",
           "target": "amara",
           "confidence": 0.56,
-          "exercises": {
-            "binary-search": [
-              "exercises/binary-search/mira.js",
-              "exercises/binary-search/amara.js"
-            ]
-          }
+          "exercises": [
+            "binary-search"
+          ]
         },
         "style": {
           "label": "study session",
@@ -238,12 +232,9 @@
           "source": "tomas",
           "target": "noor",
           "confidence": 1,
-          "exercises": {
-            "top-k": [
-              "exercises/top-k/noor.py",
-              "exercises/top-k/mira.py"
-            ]
-          }
+          "exercises": [
+            "top-k"
+          ]
         },
         "style": {
           "label": "identical submission",
@@ -257,12 +248,9 @@
           "source": "study-bot",
           "target": "mira",
           "confidence": 0.22,
-          "exercises": {
-            "two-sum": [
-              "exercises/two-sum/mira.py",
-              "exercises/two-sum/jonas.py"
-            ]
-          }
+          "exercises": [
+            "two-sum"
+          ]
         },
         "style": {
           "label": "suggested hint",

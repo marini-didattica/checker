@@ -152,10 +152,9 @@ export function resolveDirectoryFrom(baseDirectory, relativePath) {
 }
 
 /**
- * Resolve a student's answer folder from the manifest's answer root.
+ * Resolve a student's answer folder inside the exam's `risposte/` directory.
  *
- * The manifest stores the class-wide answer root (`risposte` by default);
- * each student's files live in a subfolder named after the correction
+ * Each student's files live in a subfolder named after the correction
  * descriptor, e.g. `risposte/bottea-sofia`.
  */
 export function resolveStudentAnswerFolder(answerRoot, studentId) {

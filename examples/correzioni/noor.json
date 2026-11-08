@@ -1,0 +1,14 @@
+{
+  "set": "default",
+  "exercises": {
+    "n-queens": {
+      "answer-file": "n-queens.rs"
+    },
+    "valid-parentheses": {
+      "answer-file": "valid-parentheses.go"
+    },
+    "top-k": {
+      "answer-file": "top-k.py"
+    }
+  }
+}
