@@ -24,17 +24,17 @@ Access API.
 
 ## Deploy
 
-The app is a static bundle, so it can be published directly to GitHub Pages.
-The workflow in `.github/workflows/deploy-pages.yml` runs the tests and deploys
-the repository root on every push to `main` (or manually via
-**Actions → Deploy to GitHub Pages → Run workflow**).
+The app is a static bundle, so it is published to Cloudflare Pages. The workflow
+in `.github/workflows/deploy.yml` runs the tests, builds `dist/`, and deploys it
+on every push to `main` (or manually via **Actions → Deploy to Cloudflare Pages
+→ Run workflow**).
 
-Enable it once in **Settings → Pages → Build and deployment → Source →
-GitHub Actions**. The site is then available at
-<https://marini-didattica.github.io/checker/>.
+The project is `marini-didattica-checker` and the site is available at
+<https://marini-didattica-checker.pages.dev/>.
 
-`server.js` is only needed for local development; GitHub Pages serves the same
-HTML, CSS, JS, and `examples/` files.
+The repository needs the `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`
+secrets. `server.js` is only needed for local development; Cloudflare Pages
+serves the same HTML, CSS, JS, and `examples/` files.
 
 ## Open a graph
 
