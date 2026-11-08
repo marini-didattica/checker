@@ -30,7 +30,7 @@ on every push to `main` (or manually via **Actions → Deploy to Cloudflare Page
 → Run workflow**).
 
 The project is `marini-didattica-checker` and the site is available at
-<https://marini-didattica-checker.pages.dev/>.
+<https://checker.didattica.mattia-marini.com/>.
 
 The repository needs the `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`
 secrets. `server.js` is only needed for local development; Cloudflare Pages
