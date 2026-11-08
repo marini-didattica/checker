@@ -152,7 +152,7 @@ export function resolveDirectoryFrom(baseDirectory, relativePath) {
 }
 
 /**
- * Resolve a student's answer folder inside the exam's `risposte/` directory.
+ * Resolve a student's answer folder inside the manifest's answer folder.
  *
  * Each student's files live in a subfolder named after the correction
  * descriptor, e.g. `risposte/bottea-sofia`.

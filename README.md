@@ -243,14 +243,16 @@ the answer files from the correction descriptors of the edge's source and target
 students:
 
 ```text
+<exam folder>/manifest.json                 → answer-folder (default: risposte)
 <exam folder>/correzioni/<student-id>.json
   → exercises.<exercise-id>.answer-file
-<exam folder>/risposte/<student-id>/<answer-file>
+<answer-folder>/<student-id>/<answer-file>
 ```
 
-The `answer-file` is resolved inside the student's own folder under `risposte/`.
-Both endpoints' files are shown side by side; if a student has no answer for an
-exercise id, that pane is omitted. Corrections with `"absent": true` are ignored.
+The `answer-file` is resolved inside the student's own folder under the
+manifest's `answer-folder`. Both endpoints' files are shown side by side; if a
+student has no answer for an exercise id, that pane is omitted. Corrections with
+`"absent": true` are ignored.
 
 When an edge has no explicit `label`, its label defaults to the exercise ids,
 joined with spaces (for example `"E1 E2 S5"`). An explicit `data.label` (or a
@@ -284,6 +286,7 @@ js/fs.js                   Folder abstractions and path resolution
 js/highlight.js            Lightweight extension-based syntax highlighting
 server.js                  Zero-dependency static server
 examples/misc/grafo-copie.json      Example graph
+examples/manifest.json             Example manifest with answer-folder
 examples/correzioni/               Example correction descriptors
 examples/risposte/                 Example student answer folders
 test/                      Node test suite

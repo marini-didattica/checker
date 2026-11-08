@@ -33,7 +33,8 @@ const MAX_GRAPH_DISCOVERY_BYTES = 8 * 1024 * 1024;
 const MAX_PREVIEW_BYTES = 1024 * 1024;
 const MAX_HIGHLIGHT_CHARS = 300000;
 const CORRECTIONS_DIRECTORY = 'correzioni';
-const ANSWERS_DIRECTORY = 'risposte';
+const MANIFEST_FILE = 'manifest.json';
+const DEFAULT_ANSWERS_DIRECTORY = 'risposte';
 
 const DEFAULT_NODE_SIZE = 32;
 const DEFAULT_EDGE_WIDTH = 2;
@@ -283,6 +284,7 @@ let inspectorHideTimer = null;
 let objectUrls = new Set();
 let fileCache = new Map();
 let correctionCache = new Map();
+let manifestCache = new Map();
 
 let dragDepth = 0;
 let dropBusy = false;
@@ -1004,6 +1006,7 @@ function setExamSource(source) {
   sourceGeneration += 1;
   fileCache.clear();
   correctionCache.clear();
+  manifestCache.clear();
   revokeObjectUrls();
 }
 
@@ -2645,6 +2648,13 @@ async function resolveStudentAnswerFiles(studentIds, exerciseIds) {
     exerciseIds.map((exerciseId) => [exerciseId, []])
   );
 
+  const manifest = await loadExamManifest();
+  const answerFolder =
+    typeof manifest['answer-folder'] === 'string'
+      ? manifest['answer-folder'].trim()
+      : '';
+  const answerRoot = answerFolder || DEFAULT_ANSWERS_DIRECTORY;
+
   for (const studentId of studentIds) {
     const correction = await loadCorrection(studentId);
     if (!correction || correction.absent === true) continue;
@@ -2653,7 +2663,7 @@ async function resolveStudentAnswerFiles(studentIds, exerciseIds) {
     let baseFolder;
 
     try {
-      baseFolder = resolveStudentAnswerFolder(ANSWERS_DIRECTORY, studentId);
+      baseFolder = resolveStudentAnswerFolder(answerRoot, studentId);
     } catch (error) {
       throw new SourceError(
         'io',
@@ -2721,6 +2731,43 @@ async function loadCorrection(studentId) {
   }
 
   correctionCache.set(key, parsed);
+  return parsed;
+}
+
+async function loadExamManifest() {
+  const key = String(sourceGeneration);
+  if (manifestCache.has(key)) return manifestCache.get(key);
+
+  const resolvedPath = resolveExamPath(MANIFEST_FILE);
+  const file = await readExamFile(resolvedPath);
+
+  let text;
+  try {
+    text = await file.text();
+  } catch {
+    throw new SourceError('io', `Could not read “${MANIFEST_FILE}”.`, {
+      path: MANIFEST_FILE
+    });
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(text.replace(/^\uFEFF/, ''));
+  } catch (error) {
+    throw new SourceError(
+      'io',
+      `Could not parse “${MANIFEST_FILE}”: ${error.message}`,
+      { path: MANIFEST_FILE }
+    );
+  }
+
+  if (!isStyleObject(parsed)) {
+    throw new SourceError('io', `“${MANIFEST_FILE}” must contain a JSON object.`, {
+      path: MANIFEST_FILE
+    });
+  }
+
+  manifestCache.set(key, parsed);
   return parsed;
 }
 
