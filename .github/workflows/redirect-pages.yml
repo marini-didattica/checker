@@ -1,8 +1,18 @@
-name: Deploy legacy redirect to GitHub Pages
+name: Redirect legacy GitHub Pages site
+
+# GitHub Pages is the only host that can serve marini-didattica.github.io, so
+# this deployment is kept on purpose: it does nothing but forward old URLs to
+# the Cloudflare Pages site. Cloudflare cannot serve a *.github.io hostname,
+# so this job cannot be folded into the Cloudflare deploy.
 
 on:
   push:
     branches: [main]
+    # The artifact only changes with the redirect pages themselves, so skip
+    # the deploy on content-only pushes.
+    paths:
+      - "redirect/**"
+      - ".github/workflows/redirect-pages.yml"
   workflow_dispatch:
 
 permissions:
