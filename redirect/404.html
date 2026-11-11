@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>Checker spostato — Marini didattica</title>
+    <link rel="canonical" href="https://checker.didattica.mattia-marini.com/" />
+    <script>
+      (() => {
+        const BASE_PATH = "/checker";
+        const DESTINATION = "https://checker.didattica.mattia-marini.com";
+        const path = location.pathname.startsWith(BASE_PATH)
+          ? location.pathname.slice(BASE_PATH.length) || "/"
+          : location.pathname;
+        location.replace(
+          DESTINATION + encodeURI(path) + location.search + location.hash,
+        );
+      })();
+    </script>
+  </head>
+  <body>
+    <p>
+      Il visualizzatore si è spostato su
+      <a href="https://checker.didattica.mattia-marini.com/"
+        >checker.didattica.mattia-marini.com</a
+      >.
+    </p>
+  </body>
+</html>
